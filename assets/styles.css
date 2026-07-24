@@ -1,0 +1,76 @@
+/* Persona Loop — 공용 디자인 토큰 + 컴포넌트 (모든 페이지 공유) */
+:root {
+  color-scheme: light dark;
+  --fg:#1a1a1a; --bg:#fafafa; --card:#fff; --muted:#666;
+  --accent:#4a5cf0; --accent-soft:#eef0fe;
+  --border:#e4e4e7; --danger:#d64545; --ok:#2e9e5b; --warn-bg:#fff7e6; --warn-border:#f0d9a8; --warn-fg:#b07f27;
+  --radius:12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg:#ececec; --bg:#131316; --card:#1c1c21; --muted:#9a9aa3;
+    --accent:#7c8afd; --accent-soft:#23263b;
+    --border:#2a2a31; --warn-bg:#2b2416; --warn-border:#57492a; --warn-fg:#e0b25e;
+  }
+}
+* { margin:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif; color:var(--fg); background:var(--bg); line-height:1.6; }
+main { max-width:860px; margin:0 auto; padding:24px 20px 64px; }
+a { color:var(--accent); }
+
+/* 상단바 */
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; max-width:860px; margin:0 auto; padding:14px 20px; }
+.topbar .logo { font-weight:700; text-decoration:none; color:var(--fg); font-size:1.05rem; }
+.topbar .logo span { color:var(--accent); }
+.topbar .auth { display:flex; align-items:center; gap:10px; font-size:.85rem; color:var(--muted); }
+.topbar img.avatar { width:26px; height:26px; border-radius:50%; }
+
+/* 카드/그리드 */
+.grid { display:grid; gap:14px; }
+@media (min-width:640px) { .grid.cols2 { grid-template-columns:1fr 1fr; } .grid.cols3 { grid-template-columns:repeat(3,1fr); } }
+.card { display:block; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; color:inherit; }
+a.card { text-decoration:none; transition:border-color .15s; }
+a.card:hover { border-color:var(--accent); }
+.card h2, .card h3 { font-size:1.02rem; }
+.card p { font-size:.88rem; color:var(--muted); margin-top:4px; }
+
+/* 뱃지/배너 */
+.badge { display:inline-block; font-size:.7rem; padding:1px 8px; border-radius:99px; border:1px solid var(--border); color:var(--muted); vertical-align:2px; }
+.badge.accent { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+.badge.ok { color:var(--ok); border-color:var(--ok); }
+.banner { border:1px solid var(--warn-border); background:var(--warn-bg); border-radius:var(--radius); padding:12px 16px; font-size:.88rem; margin-bottom:20px; }
+.banner.info { background:var(--accent-soft); border-color:var(--accent); }
+
+/* 버튼/폼 */
+.btn { display:inline-block; font:inherit; font-size:.9rem; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--fg); cursor:pointer; text-decoration:none; }
+.btn:hover { border-color:var(--accent); }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.btn.primary:hover { opacity:.9; }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+label { display:block; font-size:.82rem; color:var(--muted); margin:12px 0 4px; }
+input[type=text], input[type=url], textarea, select { width:100%; font:inherit; font-size:.92rem; padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--fg); }
+textarea { resize:vertical; min-height:70px; }
+
+/* 테이블 */
+table { width:100%; border-collapse:collapse; font-size:.88rem; }
+th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { color:var(--muted); font-weight:600; font-size:.8rem; }
+
+/* 결과 바 차트 (외부 라이브러리 없이) */
+.bar-row { display:grid; grid-template-columns:minmax(80px,240px) 1fr 52px; gap:10px; align-items:center; font-size:.86rem; margin:6px 0; }
+.bar-track { background:var(--border); border-radius:6px; height:14px; overflow:hidden; }
+.bar-fill { background:var(--accent); height:100%; border-radius:6px; }
+.bar-n { color:var(--muted); font-size:.78rem; text-align:right; }
+
+/* 기타 */
+.empty { text-align:center; color:var(--muted); padding:56px 20px; font-size:.92rem; }
+.stars { color:#e8a33d; letter-spacing:2px; }
+.crumb { font-size:.84rem; margin-bottom:16px; }
+.crumb a { text-decoration:none; color:var(--muted); }
+.section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:26px 0 14px; }
+.section-head h2 { font-size:1.25rem; letter-spacing:-0.01em; }
+footer.site { max-width:860px; margin:0 auto; padding:24px 20px 40px; font-size:.78rem; color:var(--muted); }
+dialog { border:1px solid var(--border); border-radius:var(--radius); background:var(--card); color:var(--fg); padding:24px; max-width:480px; width:92%; }
+dialog::backdrop { background:rgba(0,0,0,.4); }
+.muted { color:var(--muted); }
+.small { font-size:.82rem; }

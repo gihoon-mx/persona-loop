@@ -1,0 +1,99 @@
+{
+  "id": "p-minseo",
+  "projectId": "sample",
+  "name": "민서, 32, 프로덕트 디자이너",
+  "summary": "지도 앱을 하루에도 몇 번씩 여는 헤비유저. 새 서비스는 일단 구석구석 눌러보지만, 정보가 어수선하면 미련 없이 지운다. 리뷰는 이유를 조목조목 적고 별점은 짜게 주는 편.",
+  "sourceSurveyIds": ["sv-sample"],
+  "clusterInfo": "35명 중 약 14명 — '30대 · 주변 탐색 잦음 · 정보 과부하 불만' 클러스터 대표",
+  "demographics": {
+    "age": "32세 (30대)",
+    "occupation": "IT 스타트업 프로덕트 디자이너",
+    "location": "서울 마포구 (1년 전 이사)",
+    "household": "1인 가구"
+  },
+  "traits": [
+    {
+      "text": "낯선 동네에 가면 습관적으로 지도를 열어 주변부터 훑는다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q2",
+          "quote": "'낯선 동네에서 주변 정보를 자주 확인한다' 4점 이상 20/35명 — 이 클러스터를 가르는 핵심 축 (클러스터 평균 4.1, 전체 평균 3.5)"
+        }
+      ]
+    },
+    {
+      "text": "길찾기보다 '탐색'이 목적 — 주변 장소 검색과 저장/북마크를 적극적으로 쓴다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q3",
+          "quote": "주변 장소 검색 24/35명, 저장/북마크 14/35명 — 두 기능을 함께 쓰는 응답자 대부분이 이 클러스터에 속함"
+        }
+      ]
+    }
+  ],
+  "goals": [
+    {
+      "text": "지금 서 있는 곳 주변에서 나에게 필요한 정보만 빠르게 걸러 보고 싶다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q4",
+          "quote": "'복잡해서 원하는 것만 보기 어렵다' 4점 이상이 클러스터 내 약 71% (10/14명)"
+        },
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q5",
+          "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
+        }
+      ]
+    },
+    {
+      "text": "이사 온 동네가 어디까지 '우리 동네'인지 감을 잡고 싶다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q3",
+          "quote": "동네 경계 확인 9/35명 — 소수지만 뚜렷한 니즈로, 이 클러스터에 집중 분포"
+        },
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q5",
+          "quote": "우리 동네가 어디까지인지 경계가 궁금했는데 보여주는 앱이 없었음"
+        }
+      ]
+    }
+  ],
+  "painPoints": [
+    {
+      "text": "화면에 쏟아지는 광고·아이콘 때문에 정작 찾는 정보가 묻힌다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q4",
+          "quote": "전체 응답 평균 3.3점, 4점 이상 16/35명 — 상위 응답이 이 클러스터에 몰려 있음"
+        },
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q5",
+          "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
+        }
+      ]
+    }
+  ],
+  "techProfile": {
+    "savviness": "high",
+    "device": "iPhone 15 Pro (390x844)",
+    "network": "fast"
+  },
+  "voice": {
+    "tone": "직설적이고 분석적. 좋고 나쁜 이유를 조목조목 짚는다. 이모지는 거의 안 씀.",
+    "verbosity": "long",
+    "ratingBias": "harsh",
+    "sampleQuote": "첫 화면은 깔끔해서 기대했는데, 두 번째 화면부터 정보가 쏟아진다. 이러면 결국 안 열게 된다. 별 셋."
+  },
+  "version": 1,
+  "generatedBy": "claude-sonnet-4-5 (샘플 예시 데이터)",
+  "createdAt": "2026-07-25"
+}

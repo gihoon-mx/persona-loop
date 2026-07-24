@@ -4,15 +4,15 @@
 
 | ID | 모듈 | 경로 | 설명 | 상태 |
 |----|------|------|------|------|
-| M01 | site | `index.html` | 랜딩 + 공통 셸 (모듈 진입점) | 스캐폴드 |
-| M02 | core | `packages/core/` | 데이터 스키마·공용 유틸 | 스캐폴드 |
-| M03 | survey-results | `apps/survey/` | 서베이 결과 대시보드 (Phase 1: 기존 응답 임포트 뷰) | 예정 |
-| M04 | survey-studio | `apps/survey/` | 서베이 생성·코칭 + 실시간 수집 (Firebase) | 예정 |
+| M01 | site | `index.html` | 프로젝트 목록/생성 + 프로젝트 홈 (모듈 진입점) | ✅ v0.2 |
+| M02 | core | `packages/core/` | 스키마·데이터 API (Firebase/static 이중 모드)·공용 스타일 | ✅ v0.2 |
+| M03 | survey-results | `apps/survey/` | 서베이 결과 대시보드 (실시간 집계 + 커밋된 집계) | ✅ v0.2 |
+| M04 | survey-studio | `apps/survey/` | 서베이 생성·CSV 임포트·공개 응답 폼 (코칭 기능은 예정) | 🔶 코칭 예정 |
 | M05 | persona-builder | `agents/persona-builder/` | 서베이 응답 → 페르소나 생성 (Claude API) | 예정 |
-| M06 | persona-app | `apps/persona/` | 페르소나 카드 뷰·관리 | 예정 |
+| M06 | persona-app | `apps/persona/` | 페르소나 카드 뷰 + 근거(evidence) 상세 | ✅ v0.2 (뷰어) |
 | M07 | demo-reviewer | `agents/demo-reviewer/` | Playwright + Claude로 데모 사용 + 리뷰 생성 | 예정 |
-| M08 | review-app | `apps/review/` | 리뷰 뷰어 (앱마켓 스타일) + 세션 리플레이 | 예정 |
-| M09 | infra | `.github/workflows/`, Firebase 설정 | 배포·Agent 실행 파이프라인 | 스캐폴드 |
+| M08 | review-app | `apps/review/` | 타입별 리뷰 뷰어 + 세션 리플레이 | ✅ v0.2 (뷰어) |
+| M09 | infra | `.github/workflows/`, Firebase 설정 | 배포·Agent 실행 파이프라인 | 🔶 Pages 완료, Firebase 대기 |
 
 ## 규칙
 - 스키마 변경은 반드시 M02(`packages/core/schemas/`)에서 먼저 — 앱과 에이전트는 스키마를 따른다.

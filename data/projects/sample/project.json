@@ -1,0 +1,10 @@
+{
+  "id": "sample",
+  "name": "샘플 프로젝트",
+  "description": "Persona Loop의 전체 흐름(서베이 → 페르소나 → 리뷰)을 보여주는 예시 데이터. 실제 응답이 아니며 언제든 삭제 가능.",
+  "demoUrl": "https://gihoon-mx.github.io/now-here-demo/",
+  "status": "active",
+  "surveyIds": ["sv-sample"],
+  "personaIds": ["p-minseo", "p-yeongho"],
+  "createdAt": "2026-07-25"
+}

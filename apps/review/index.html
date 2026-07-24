@@ -1,5 +1,294 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Persona Loop — review</title>
-<style>body{font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;color-scheme:light dark}</style>
-</head><body><p>🚧 review 모듈 준비 중 — <a href="../../">홈으로</a></p></body></html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Persona Loop — Review</title>
+<link rel="stylesheet" href="../../assets/styles.css">
+<style>
+/* review 페이지 전용 최소 스타일 */
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 18px; }
+.chip { font-size:.78rem; padding:3px 12px; border-radius:99px; border:1px solid var(--border); color:var(--muted); background:var(--card); text-decoration:none; }
+.chip:hover { border-color:var(--accent); }
+.chip.active { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); font-weight:600; }
+.excerpt2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.stars.big { font-size:1.6rem; letter-spacing:4px; }
+.badge.warn { color:var(--warn-fg); border-color:var(--warn-border); background:var(--warn-bg); }
+.bubble { background:var(--bg); border:1px solid var(--border); border-radius:14px 14px 14px 4px; padding:10px 14px; margin:10px 0; max-width:540px; font-size:.92rem; }
+.qa-q { font-weight:700; margin:16px 0 4px; }
+.qa-q:first-child { margin-top:0; }
+.qa-a { margin:0 0 6px; white-space:pre-line; }
+.tl { list-style:none; padding:0; margin:18px 0 0; }
+.tl li { position:relative; padding:4px 0 22px 46px; }
+.tl li::before { content:""; position:absolute; left:15px; top:34px; bottom:0; width:2px; background:var(--border); }
+.tl li:last-child::before { display:none; }
+.tl-n { position:absolute; left:0; top:0; width:32px; height:32px; border-radius:50%; background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent); display:flex; align-items:center; justify-content:center; font-size:.82rem; font-weight:700; }
+.thought { border-left:3px solid var(--accent); background:var(--accent-soft); padding:8px 12px; border-radius:0 8px 8px 0; margin-top:6px; font-size:.88rem; }
+</style>
+</head>
+<body>
+<header class="topbar"></header>
+<main id="app"><p class="empty">불러오는 중…</p></main>
+<footer class="site">Persona Loop <span data-app-ver>v0.2.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
+
+<script type="module">
+import * as core from '../../packages/core/core.js';
+const { esc, qsParam } = core;
+const app = document.getElementById('app');
+
+core.initCore();
+core.renderTopbar('../../');
+
+const pid = qsParam('p');
+
+const TYPE_LABEL = { appstore: '앱스토어', blog: '블로그', sns: 'SNS', interview: '인터뷰', ux_report: 'UX 리포트' };
+const OUTCOME_LABEL = { ok: '성공', confused: '혼란', error: '오류', gave_up: '포기' };
+const RESULT_LABEL = { completed: '완료', partial: '부분 완료', abandoned: '중도 포기' };
+
+main();
+
+async function main() {
+  if (!pid) {
+    app.innerHTML = `<p class="empty">프로젝트를 먼저 선택하세요. <a href="../../">프로젝트 목록으로</a></p>`;
+    return;
+  }
+  try {
+    // 리뷰·세션·페르소나는 항상 repo 커밋 정적 데이터 (읽기 전용 — 생성은 M07 demo-reviewer Agent 담당)
+    const [project, reviews, sessions, personas] = await Promise.all([
+      core.getProject(pid).catch(() => null),
+      core.listArtifacts(pid, 'reviews'),
+      core.listArtifacts(pid, 'sessions'),
+      core.listArtifacts(pid, 'personas'),
+    ]);
+    const ctx = { project, reviews, sessions, personas };
+
+    const sessionId = qsParam('session');
+    const reviewId = qsParam('review');
+    if (sessionId) renderSession(ctx, sessionId);
+    else if (reviewId) renderReview(ctx, reviewId);
+    else renderList(ctx);
+  } catch (e) {
+    app.innerHTML = `<p class="empty">데이터를 불러오지 못했습니다: ${esc(e.message)}</p>`;
+  }
+  core.renderModeBanner(app);
+}
+
+function personaName(ctx, id) {
+  const p = ctx.personas.find((x) => x.id === id);
+  return p && p.name ? p.name : id;
+}
+
+function starChars(rating) {
+  const full = Math.min(5, Math.max(0, Math.round(Number(rating) || 0)));
+  return '★'.repeat(full) + '☆'.repeat(5 - full);
+}
+
+function fmtDuration(sec) {
+  if (sec == null || isNaN(sec)) return '';
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return m ? `${m}분 ${s}초` : `${s}초`;
+}
+
+function excerpt(body) {
+  return String(body || '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 2).join(' ');
+}
+
+// ---------- 뷰 1: 리뷰 목록 ----------
+function renderList(ctx) {
+  const typeFilter = qsParam('type');
+  const personaFilter = qsParam('persona');
+  let items = ctx.reviews.slice();
+  if (personaFilter) items = items.filter((r) => r.personaId === personaFilter);
+  if (typeFilter) items = items.filter((r) => r.type === typeFilter);
+  items.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(a.id).localeCompare(String(b.id)));
+
+  const chip = (t, label) => {
+    const q = new URLSearchParams({ p: pid });
+    if (t) q.set('type', t);
+    if (personaFilter) q.set('persona', personaFilter);
+    const active = (typeFilter || '') === (t || '');
+    return `<a class="chip${active ? ' active' : ''}" href="?${esc(q.toString())}">${esc(label)}</a>`;
+  };
+
+  const clearQ = new URLSearchParams({ p: pid });
+  if (typeFilter) clearQ.set('type', typeFilter);
+
+  app.innerHTML = `
+    <div class="crumb"><a href="../../?p=${esc(pid)}">← ${esc(ctx.project?.name || pid)}</a></div>
+    <div class="section-head" style="margin-top:0">
+      <h2>리뷰</h2>
+      <span class="small muted">총 ${ctx.reviews.length}건</span>
+    </div>
+    <div class="chips">
+      ${chip(null, '전체')}
+      ${Object.keys(TYPE_LABEL).map((t) => chip(t, TYPE_LABEL[t])).join('')}
+    </div>
+    ${personaFilter ? `
+      <div class="banner info small">👤 페르소나 <b>${esc(personaName(ctx, personaFilter))}</b>의 리뷰만 표시 중
+        · <a href="?${esc(clearQ.toString())}">필터 해제</a></div>` : ''}
+    ${items.length
+      ? `<div class="grid cols2">${items.map((r) => reviewCard(ctx, r)).join('')}</div>`
+      : emptyState(ctx, typeFilter || personaFilter)}
+  `;
+}
+
+function reviewCard(ctx, r) {
+  const q = new URLSearchParams({ p: pid, review: r.id });
+  return `
+    <a class="card" href="?${esc(q.toString())}">
+      <h3>${esc(personaName(ctx, r.personaId))}
+        <span class="badge accent">${esc(TYPE_LABEL[r.type] || r.type)}</span>
+        ${r.type === 'appstore' && r.rating != null ? `<span class="stars">${starChars(r.rating)}</span>` : ''}
+      </h3>
+      ${r.title ? `<p style="color:var(--fg); font-weight:600">${esc(r.title)}</p>` : ''}
+      <p class="excerpt2">${esc(excerpt(r.body))}</p>
+      <p class="small muted" style="margin-top:8px">${esc(r.createdAt || '')}</p>
+    </a>`;
+}
+
+function emptyState(ctx, filtered) {
+  if (filtered && ctx.reviews.length) return `<p class="empty">조건에 맞는 리뷰가 없습니다.</p>`;
+  return `
+    <div class="card" style="text-align:center; padding:44px 24px">
+      <h3>아직 리뷰가 없습니다</h3>
+      <p style="margin-top:10px">페르소나 Agent가 Playwright 브라우저로 데모를 <b>실제로 사용</b>해 보고,<br>
+        사용 여정 로그와 리뷰를 이 repo에 커밋하면 여기에 표시됩니다.</p>
+      <p class="small muted" style="margin-top:10px">세션당 약 $0.5~2의 API 비용이 들며, 실행 전에 반드시 고지됩니다 — <b>M07에서 제공 예정</b></p>
+    </div>`;
+}
+
+// ---------- 뷰 2: 리뷰 상세 ----------
+function renderReview(ctx, reviewId) {
+  const back = `?p=${esc(pid)}`;
+  const r = ctx.reviews.find((x) => x.id === reviewId);
+  if (!r) {
+    app.innerHTML = `<div class="crumb"><a href="${back}">← 리뷰 목록</a></div>
+      <p class="empty">리뷰 '${esc(reviewId)}'를 찾을 수 없습니다.</p>`;
+    return;
+  }
+  const name = personaName(ctx, r.personaId);
+  app.innerHTML = `
+    <div class="crumb"><a href="${back}">← 리뷰 목록</a></div>
+    <div class="banner info">🤖 <b>AI 생성 리뷰</b> — 페르소나 '${esc(name)}'의 시뮬레이션입니다</div>
+    <p class="small muted" style="margin-bottom:10px">
+      ${esc(name)} · <span class="badge accent">${esc(TYPE_LABEL[r.type] || r.type)}</span> · ${esc(r.createdAt || '')}${r.generatedBy ? ` · ${esc(r.generatedBy)}` : ''}
+    </p>
+    <div class="card">${reviewBodyHtml(r)}</div>
+    ${suggestionsBlock(r)}
+    ${sessionLinkHtml(ctx, r)}
+  `;
+}
+
+function reviewBodyHtml(r) {
+  const lines = String(r.body || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  switch (r.type) {
+    case 'appstore':
+      return `
+        ${r.rating != null ? `<div class="stars big" title="${esc(r.rating)}점">${starChars(r.rating)}</div>` : ''}
+        ${r.title ? `<h2 style="font-size:1.15rem; margin-top:6px">${esc(r.title)}</h2>` : ''}
+        <p style="white-space:pre-line; margin-top:10px">${esc(r.body)}</p>
+        ${listBlock('👍 좋았던 점', r.pros)}
+        ${listBlock('👎 아쉬운 점', r.cons)}`;
+    case 'blog':
+      return `
+        ${r.title ? `<h2 style="font-size:1.25rem">${esc(r.title)}</h2>` : ''}
+        <div style="white-space:pre-line; margin-top:12px">${esc(r.body)}</div>`;
+    case 'sns':
+      return lines.map((l) => `<div class="bubble">${esc(l)}</div>`).join('');
+    case 'interview':
+      return lines.map((l) => {
+        if (/^Q\s*[:.]/.test(l)) return `<p class="qa-q">Q. ${esc(l.replace(/^Q\s*[:.]\s*/, ''))}</p>`;
+        if (/^A\s*[:.]/.test(l)) return `<p class="qa-a">${esc(l.replace(/^A\s*[:.]\s*/, ''))}</p>`;
+        return `<p class="qa-a">${esc(l)}</p>`;
+      }).join('');
+    case 'ux_report':
+    default:
+      return `
+        ${r.title ? `<h2 style="font-size:1.15rem">${esc(r.title)}</h2>` : ''}
+        <div style="white-space:pre-line; margin-top:12px">${esc(r.body)}</div>`;
+  }
+}
+
+function listBlock(title, arr) {
+  if (!Array.isArray(arr) || !arr.length) return '';
+  return `<p style="font-weight:700; margin-top:16px">${title}</p>
+    <ul style="margin:6px 0 0; padding-left:20px">${arr.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+}
+
+function suggestionsBlock(r) {
+  if (!Array.isArray(r.suggestions) || !r.suggestions.length) return '';
+  return `<div class="card" style="margin-top:14px">
+      <h3>🛠 개선 제안</h3>
+      <ul style="margin:8px 0 0; padding-left:20px">${r.suggestions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+    </div>`;
+}
+
+function sessionLinkHtml(ctx, r) {
+  if (!r.sessionId) return '';
+  const exists = ctx.sessions.some((s) => s.id === r.sessionId);
+  if (!exists) {
+    return `<p class="small muted" style="margin-top:18px">근거 세션 '${esc(r.sessionId)}'의 로그가 아직 repo에 커밋되지 않았습니다.</p>`;
+  }
+  const q = new URLSearchParams({ p: pid, session: r.sessionId });
+  return `<p style="margin-top:18px"><a class="btn" href="?${esc(q.toString())}">사용 여정 보기 →</a></p>`;
+}
+
+// ---------- 뷰 3: 세션 리플레이 ----------
+function renderSession(ctx, sessionId) {
+  const back = `?p=${esc(pid)}`;
+  const s = ctx.sessions.find((x) => x.id === sessionId);
+  if (!s) {
+    app.innerHTML = `<div class="crumb"><a href="${back}">← 리뷰 목록</a></div>
+      <p class="empty">세션 '${esc(sessionId)}' 로그를 찾을 수 없습니다. 아직 repo에 커밋되지 않았을 수 있습니다.</p>`;
+    return;
+  }
+  const name = personaName(ctx, s.personaId);
+  const env = s.environment || {};
+  const envBadges = [
+    env.viewport ? `<span class="badge">📱 ${esc(env.viewport)}</span>` : '',
+    env.network ? `<span class="badge">📶 네트워크 ${esc(env.network)}</span>` : '',
+    env.geolocation ? `<span class="badge">📍 ${esc(env.geolocation)}</span>` : '',
+  ].filter(Boolean).join(' ');
+
+  const relReviews = ctx.reviews.filter((r) => r.sessionId === s.id);
+
+  app.innerHTML = `
+    <div class="crumb"><a href="${back}">← 리뷰 목록</a></div>
+    <div class="banner info">🤖 <b>AI 사용 세션</b> — 페르소나 '${esc(name)}'의 시뮬레이션 여정 기록입니다</div>
+    <div class="section-head" style="margin-top:0"><h2>${esc(name)}의 사용 여정</h2></div>
+    <p class="muted" style="margin:-6px 0 10px">시나리오: ${esc(s.scenario)}</p>
+    ${envBadges ? `<p>${envBadges}</p>` : ''}
+    <ol class="tl">
+      ${(s.steps || []).map((st) => `
+        <li>
+          <span class="tl-n">${esc(st.n)}</span>
+          <div><b>${esc(st.action)}</b> ${st.outcome ? outcomeBadge(st.outcome) : ''}</div>
+          ${st.thought ? `<div class="thought">💭 속마음 — "${esc(st.thought)}"</div>` : ''}
+          ${st.screenshot ? `<img src="${esc(shotSrc(st.screenshot))}" alt="스텝 ${esc(st.n)} 스크린샷" loading="lazy"
+            style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:8px">` : ''}
+        </li>`).join('')}
+    </ol>
+    <div class="card">
+      <b>결과: ${esc(RESULT_LABEL[s.result] || s.result || '—')}</b>
+      ${s.durationSec != null ? ` · 소요 ${esc(fmtDuration(s.durationSec))}` : ''}
+      ${s.costUsd != null ? ` · <span class="muted">이 세션 비용 $${esc(Number(s.costUsd).toFixed(2))}</span>` : ''}
+    </div>
+    ${relReviews.length ? `<p style="margin-top:18px; display:flex; gap:8px; flex-wrap:wrap">${relReviews.map((r) =>
+      `<a class="btn" href="?${esc(new URLSearchParams({ p: pid, review: r.id }).toString())}">이 세션의 ${esc(TYPE_LABEL[r.type] || r.type)} 리뷰 보기 →</a>`).join('')}</p>` : ''}
+  `;
+}
+
+function outcomeBadge(outcome) {
+  const cls = outcome === 'ok' ? 'ok' : 'warn';
+  return `<span class="badge ${cls}">${esc(OUTCOME_LABEL[outcome] || outcome)}</span>`;
+}
+
+function shotSrc(p) {
+  const path = String(p);
+  if (/^(https?:)?\/\//.test(path) || path.startsWith('/')) return path;
+  return `../../data/projects/${pid}/sessions/${path}`;
+}
+</script>
+</body>
+</html>

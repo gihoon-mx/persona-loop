@@ -1,0 +1,4 @@
+{
+  "comment": "static(읽기 전용) 모드에서 보여줄 프로젝트 목록. Firebase 연결 후에는 Firestore가 목록의 기준이 된다.",
+  "projects": ["now-here", "sample"]
+}

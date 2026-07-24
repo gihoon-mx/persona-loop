@@ -1,5 +1,213 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Persona Loop — persona</title>
-<style>body{font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;color-scheme:light dark}</style>
-</head><body><p>🚧 persona 모듈 준비 중 — <a href="../../">홈으로</a></p></body></html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Persona Loop — 페르소나</title>
+<link rel="stylesheet" href="../../assets/styles.css">
+<style>
+/* persona 전용 최소 스타일 */
+.persona-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.evi-item { padding:10px 0; border-bottom:1px solid var(--border); }
+.evi-item:last-child { border-bottom:none; padding-bottom:2px; }
+.evi-text { font-size:.94rem; }
+details.evi { margin-top:4px; }
+details.evi summary { cursor:pointer; font-size:.78rem; color:var(--accent); user-select:none; }
+details.evi summary:hover { text-decoration:underline; }
+blockquote.quote { margin:8px 0 2px; padding:10px 14px; border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 8px 8px 0; font-size:.87rem; font-style:italic; }
+blockquote.quote .src { display:block; margin-top:6px; font-size:.75rem; color:var(--muted); font-style:normal; }
+.kv-caption { font-size:.77rem; color:var(--muted); margin-top:10px; }
+.detail-sub { font-size:.8rem; color:var(--muted); margin:-6px 0 18px; }
+.pipeline-steps { padding-left:20px; font-size:.86rem; color:var(--muted); margin:10px 0; }
+.pipeline-steps li { margin:6px 0; }
+</style>
+</head>
+<body>
+<header class="topbar"></header>
+<main id="app"><p class="empty">불러오는 중…</p></main>
+<footer class="site">Persona Loop <span data-app-ver>v0.2.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
+
+<script type="module">
+import * as core from '../../packages/core/core.js';
+const { esc, qsParam } = core;
+const app = document.getElementById('app');
+
+core.initCore();
+core.renderTopbar('../../');
+
+const pid = qsParam('p');
+const personaId = qsParam('persona');
+
+const SAVVY = { low: '테크 서툼', mid: '테크 보통', high: '테크 능숙' };
+const BIAS = { generous: '별점 후함', neutral: '별점 중립', harsh: '별점 짠편' };
+const NET = { fast: '빠름', normal: '보통', slow: '느림' };
+const VERB = { terse: '짧게 씀', normal: '보통 분량', long: '길게 씀' };
+
+if (!pid) {
+  app.innerHTML = `<p class="empty">프로젝트를 먼저 선택하세요.<br><br><a href="../../">← 프로젝트 목록으로</a></p>`;
+} else {
+  main().catch((e) => {
+    app.innerHTML = `<p class="empty">불러오는 중 오류가 발생했습니다: ${esc(e.message)}</p>`;
+  });
+}
+
+async function main() {
+  const [project, personas] = await Promise.all([
+    core.getProject(pid),
+    core.listArtifacts(pid, 'personas'),
+  ]);
+  if (!project) {
+    app.innerHTML = `<div class="crumb"><a href="../../">← 프로젝트 목록</a></div>
+      <p class="empty">프로젝트 '${esc(pid)}'를 찾을 수 없습니다.</p>`;
+    return;
+  }
+  if (personaId) {
+    const p = personas.find((x) => x && x.id === personaId);
+    if (p) await renderDetail(project, p);
+    else {
+      app.innerHTML = `<div class="crumb"><a href="../../?p=${esc(pid)}">← ${esc(project.name)}</a> / <a href="?p=${esc(pid)}">페르소나</a></div>
+        <p class="empty">페르소나 '${esc(personaId)}'를 찾을 수 없습니다.</p>`;
+    }
+  } else {
+    renderList(project, personas);
+  }
+  core.renderModeBanner(app);
+}
+
+// ---------- 뷰 1: 페르소나 목록 ----------
+function renderList(project, personas) {
+  app.innerHTML = `
+    <div class="crumb"><a href="../../?p=${esc(pid)}">← ${esc(project.name)}</a></div>
+    <div class="section-head" style="margin-top:0">
+      <h2>페르소나 <span class="badge accent">🤖 AI 생성 · 근거 기반</span></h2>
+    </div>
+    <p class="small muted" style="margin:-6px 0 16px">서베이 응답 클러스터를 대표하는 가상 사용자입니다. 모든 특성은 실제 응답 근거(evidence)와 연결됩니다.</p>
+    ${personas.length ? `
+      <div class="grid cols2">
+        ${personas.map((p) => `
+          <a class="card" href="?p=${esc(pid)}&persona=${esc(p.id)}">
+            <h3>${esc(p.name)}</h3>
+            <p>${esc(p.summary || '')}</p>
+            ${p.clusterInfo ? `<p class="small muted" style="margin-top:8px">${esc(p.clusterInfo)}</p>` : ''}
+            <div class="persona-meta">
+              ${p.techProfile && p.techProfile.savviness ? `<span class="badge">${esc(SAVVY[p.techProfile.savviness] || p.techProfile.savviness)}</span>` : ''}
+              ${p.voice && p.voice.ratingBias ? `<span class="badge accent">${esc(BIAS[p.voice.ratingBias] || p.voice.ratingBias)}</span>` : ''}
+            </div>
+          </a>`).join('')}
+      </div>`
+      : `
+      <div class="card">
+        <p class="empty" style="padding:28px 0 8px">아직 이 프로젝트에 페르소나가 없습니다.</p>
+        <div style="max-width:600px; margin:0 auto; padding:0 4px 20px;">
+          <p class="small muted">페르소나는 다음 파이프라인으로 만들어집니다.</p>
+          <ol class="pipeline-steps">
+            <li>Survey 모듈에서 서베이 응답을 수집합니다.</li>
+            <li><b>persona-builder Agent</b>가 응답을 클러스터링해 페르소나를 생성합니다 — Claude API를 사용하며, 실행 전에 예상 비용을 고지합니다.</li>
+            <li>모든 특성이 실제 응답 근거(evidence)에 연결된 페르소나 JSON이 repo에 커밋되어 이 화면에 나타납니다.</li>
+          </ol>
+          <p class="small muted">생성 기능은 <b>M05(persona-builder, GitHub Actions)</b>에서 제공 예정입니다. 이 모듈은 커밋된 페르소나를 보는 뷰어입니다.</p>
+        </div>
+      </div>`}`;
+}
+
+// ---------- 뷰 2: 페르소나 상세 ----------
+async function renderDetail(project, p) {
+  // evidence 출처 표시용으로 서베이 정의를 불러와 문항 텍스트를 매핑
+  const surveyIds = [...new Set([...(p.sourceSurveyIds || []), ...collectEvidenceSurveyIds(p)])];
+  const fetched = await Promise.all(surveyIds.map((id) => core.getSurvey(pid, id).catch(() => null)));
+  const smap = {};
+  fetched.filter(Boolean).forEach((s) => {
+    smap[s.id] = { title: s.title, q: Object.fromEntries((s.questions || []).map((q) => [q.id, q.text])) };
+  });
+
+  const tp = p.techProfile || {};
+  const vo = p.voice || {};
+  const demo = p.demographics || {};
+  const demoRows = [['나이', demo.age], ['직업', demo.occupation], ['거주지', demo.location], ['가구 구성', demo.household]]
+    .filter(([, v]) => v);
+
+  app.innerHTML = `
+    <div class="crumb"><a href="../../?p=${esc(pid)}">← ${esc(project.name)}</a> / <a href="?p=${esc(pid)}">페르소나</a></div>
+    <div class="section-head" style="margin-top:0">
+      <h2>${esc(p.name)}</h2>
+      <span class="badge accent">🤖 AI 생성 · 근거 기반</span>
+    </div>
+    <p style="margin:-4px 0 10px">${esc(p.summary || '')}</p>
+    <p class="detail-sub">
+      ${p.version ? `버전 v${esc(p.version)}` : ''}${p.generatedBy ? ` · 생성: ${esc(p.generatedBy)}` : ''}${p.createdAt ? ` · ${esc(p.createdAt)}` : ''}
+      ${(p.sourceSurveyIds || []).length ? `<br>근거 서베이: ${p.sourceSurveyIds.map((id) => esc(smap[id] ? `${smap[id].title} (${id})` : id)).join(', ')}` : ''}
+    </p>
+
+    ${demoRows.length || p.clusterInfo ? `
+    <section class="card">
+      <h3>기본 정보</h3>
+      ${demoRows.length ? `<table style="margin-top:10px">
+        ${demoRows.map(([k, v]) => `<tr><th style="width:110px">${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}
+      </table>` : ''}
+      ${p.clusterInfo ? `<p class="kv-caption">대표 클러스터: ${esc(p.clusterInfo)}</p>` : ''}
+    </section>` : ''}
+
+    ${evidencedSection('특성', p.traits, smap)}
+    ${evidencedSection('목표', p.goals, smap)}
+    ${evidencedSection('페인 포인트', p.painPoints, smap)}
+
+    <div class="grid cols2" style="margin-top:14px">
+      <section class="card">
+        <h3>테크 프로필</h3>
+        <table style="margin-top:10px">
+          ${tp.savviness ? `<tr><th style="width:100px">능숙도</th><td><span class="badge">${esc(SAVVY[tp.savviness] || tp.savviness)}</span></td></tr>` : ''}
+          ${tp.device ? `<tr><th>주 기기</th><td>${esc(tp.device)}</td></tr>` : ''}
+          ${tp.network ? `<tr><th>네트워크</th><td>${esc(NET[tp.network] || tp.network)}</td></tr>` : ''}
+        </table>
+        <p class="kv-caption">이 값들이 데모 사용 세션의 환경(뷰포트·네트워크 조건)을 결정합니다.</p>
+      </section>
+      <section class="card">
+        <h3>보이스</h3>
+        <table style="margin-top:10px">
+          ${vo.tone ? `<tr><th style="width:100px">톤</th><td>${esc(vo.tone)}</td></tr>` : ''}
+          ${vo.verbosity ? `<tr><th>분량</th><td>${esc(VERB[vo.verbosity] || vo.verbosity)}</td></tr>` : ''}
+          ${vo.ratingBias ? `<tr><th>별점 성향</th><td><span class="badge accent">${esc(BIAS[vo.ratingBias] || vo.ratingBias)}</span></td></tr>` : ''}
+        </table>
+        ${vo.sampleQuote ? `<blockquote class="quote">“${esc(vo.sampleQuote)}”<span class="src">말투 예시</span></blockquote>` : ''}
+        <p class="kv-caption">이 값들이 리뷰의 말투·분량·별점 경향을 결정합니다.</p>
+      </section>
+    </div>
+
+    <div style="margin-top:24px; text-align:center;">
+      <a class="btn primary" href="../review/?p=${esc(pid)}&persona=${esc(p.id)}">이 페르소나의 리뷰 보기 →</a>
+    </div>`;
+}
+
+function collectEvidenceSurveyIds(p) {
+  const ids = [];
+  ['traits', 'goals', 'painPoints'].forEach((k) =>
+    (p[k] || []).forEach((it) => (it.evidence || []).forEach((ev) => ev.surveyId && ids.push(ev.surveyId))));
+  return ids;
+}
+
+function evidencedSection(title, items, smap) {
+  if (!items || !items.length) return '';
+  return `
+    <section class="card" style="margin-top:14px">
+      <h3>${esc(title)}</h3>
+      ${items.map((it) => `
+        <div class="evi-item">
+          <div class="evi-text">${esc(it.text)}</div>
+          ${it.evidence && it.evidence.length ? `
+            <details class="evi">
+              <summary>근거 ${it.evidence.length}건 펼치기</summary>
+              ${it.evidence.map((ev) => {
+                const s = smap[ev.surveyId];
+                const qText = s && s.q ? s.q[ev.questionId] : null;
+                return `<blockquote class="quote">
+                  ${ev.quote ? `“${esc(ev.quote)}”` : '<span class="muted small">(인용 없음 — 출처만 기록됨)</span>'}
+                  <span class="src">출처: ${esc(s ? s.title : ev.surveyId)} · ${esc(ev.questionId)}${qText ? ` — ${esc(qText)}` : ''}</span>
+                </blockquote>`;
+              }).join('')}
+            </details>` : ''}
+        </div>`).join('')}
+    </section>`;
+}
+</script>
+</body>
+</html>

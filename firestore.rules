@@ -1,0 +1,30 @@
+rules_version = '2';
+// Persona Loop Firestore 보안 규칙.
+// 콘솔 > Firestore Database > 규칙 탭에 이 내용을 붙여넣고 게시한다.
+// adminEmails는 packages/core/firebase-config.js의 allowlist와 일치시킬 것.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email in ['gihoon.mx@gmail.com'];
+    }
+
+    match /projects/{projectId} {
+      // 프로젝트/서베이 정의는 공개 읽기 (어차피 repo에도 공개 커밋되는 정보)
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /surveys/{surveyId} {
+        allow read: if true;
+        allow write: if isAdmin();
+
+        // 응답 원본: 열람은 admin만. 생성은 admin(임포트) 또는 열려있는 서베이에 익명 제출
+        match /responses/{responseId} {
+          allow read, update, delete: if isAdmin();
+          allow create: if isAdmin()
+            || get(/databases/$(database)/documents/projects/$(projectId)/surveys/$(surveyId)).data.status == 'open';
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "ss-minseo-01",
+  "projectId": "sample",
+  "personaId": "p-minseo",
+  "scenario": "이사 온 동네에서 우리 동네 경계가 어디까지인지 확인하기",
+  "environment": {
+    "viewport": "390x844 (iPhone)",
+    "network": "normal",
+    "geolocation": "37.5563,126.9226 (서울 마포구 망원동)"
+  },
+  "steps": [
+    { "n": 1, "action": "데모 페이지 접속", "thought": "로딩 빠르네. 지도가 바로 뜨는구나", "outcome": "ok" },
+    { "n": 2, "action": "위치 권한 팝업에서 '허용' 탭", "thought": "위치 앱이니까 필요하겠지. 근데 왜 필요한지 설명이 있으면 더 안심될 듯", "outcome": "ok" },
+    { "n": 3, "action": "지도가 현재 위치로 이동하길 기다림", "thought": "어? 내 위치로 안 가네. 버튼이 어디 있지… 오른쪽 아래 아이콘이 그건가?", "outcome": "confused" },
+    { "n": 4, "action": "우측 하단 현재 위치 버튼 탭", "thought": "아 이거였구나. 아이콘이 흐려서 못 봤어", "outcome": "ok" },
+    { "n": 5, "action": "내 위치 주변의 동네 경계선 확인", "thought": "오, 망원동 경계가 딱 그려진다! 이게 궁금했던 거야", "outcome": "ok" },
+    { "n": 6, "action": "지도를 축소해서 옆 동네와의 경계 비교", "thought": "경계선 색이 도로랑 비슷해서 축소하니까 살짝 헷갈리네", "outcome": "confused" },
+    { "n": 7, "action": "옆 동네 경계를 탭해서 동 이름 확인", "thought": "성산1동, 성산2동… 이름이 떠서 좋다. 부동산 볼 때 쓰면 되겠는데?", "outcome": "ok" }
+  ],
+  "result": "completed",
+  "durationSec": 264,
+  "costUsd": 1.12,
+  "createdAt": "2026-07-25"
+}

@@ -29,7 +29,7 @@
 <body>
 <header class="topbar"></header>
 <main id="app"><p class="empty">불러오는 중…</p></main>
-<footer class="site">Persona Loop <span data-app-ver>v0.2.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
+<footer class="site">Persona Loop <span data-app-ver>v0.3.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
 
 <script type="module">
 import * as core from '../../packages/core/core.js';
@@ -45,15 +45,21 @@ const TYPE_LABEL = { appstore: '앱스토어', blog: '블로그', sns: 'SNS', in
 const OUTCOME_LABEL = { ok: '성공', confused: '혼란', error: '오류', gave_up: '포기' };
 const RESULT_LABEL = { completed: '완료', partial: '부분 완료', abandoned: '중도 포기' };
 
-main();
+main().catch((e) => {
+  app.innerHTML = `<p class="empty">불러오는 중 오류가 발생했습니다: ${esc(e.message)}</p>`;
+});
 
 async function main() {
+  await core.initCore();
+  // 이 화면은 전체가 admin 전용이다. 게이트를 먼저 통과한 뒤에만 Firestore를 읽는다.
+  if (!(await core.requireAdmin(app))) return;
+
   if (!pid) {
     app.innerHTML = `<p class="empty">프로젝트를 먼저 선택하세요. <a href="../../">프로젝트 목록으로</a></p>`;
     return;
   }
   try {
-    // 리뷰·세션·페르소나는 항상 repo 커밋 정적 데이터 (읽기 전용 — 생성은 M07 demo-reviewer Agent 담당)
+    // 리뷰·세션·페르소나는 Firestore에서 읽는 읽기 전용 데이터 (생성은 M07 demo-reviewer Agent 담당)
     const [project, reviews, sessions, personas] = await Promise.all([
       core.getProject(pid).catch(() => null),
       core.listArtifacts(pid, 'reviews'),
@@ -153,7 +159,7 @@ function emptyState(ctx, filtered) {
     <div class="card" style="text-align:center; padding:44px 24px">
       <h3>아직 리뷰가 없습니다</h3>
       <p style="margin-top:10px">페르소나 Agent가 Playwright 브라우저로 데모를 <b>실제로 사용</b>해 보고,<br>
-        사용 여정 로그와 리뷰를 이 repo에 커밋하면 여기에 표시됩니다.</p>
+        사용 여정 로그와 리뷰를 <b>Firestore에 저장</b>하면 여기에 표시됩니다.</p>
       <p class="small muted" style="margin-top:10px">세션당 약 $0.5~2의 API 비용이 들며, 실행 전에 반드시 고지됩니다 — <b>M07에서 제공 예정</b></p>
     </div>`;
 }
@@ -228,7 +234,7 @@ function sessionLinkHtml(ctx, r) {
   if (!r.sessionId) return '';
   const exists = ctx.sessions.some((s) => s.id === r.sessionId);
   if (!exists) {
-    return `<p class="small muted" style="margin-top:18px">근거 세션 '${esc(r.sessionId)}'의 로그가 아직 repo에 커밋되지 않았습니다.</p>`;
+    return `<p class="small muted" style="margin-top:18px">근거 세션 '${esc(r.sessionId)}'의 로그가 아직 Firestore에 저장되지 않았습니다.</p>`;
   }
   const q = new URLSearchParams({ p: pid, session: r.sessionId });
   return `<p style="margin-top:18px"><a class="btn" href="?${esc(q.toString())}">사용 여정 보기 →</a></p>`;
@@ -240,7 +246,7 @@ function renderSession(ctx, sessionId) {
   const s = ctx.sessions.find((x) => x.id === sessionId);
   if (!s) {
     app.innerHTML = `<div class="crumb"><a href="${back}">← 리뷰 목록</a></div>
-      <p class="empty">세션 '${esc(sessionId)}' 로그를 찾을 수 없습니다. 아직 repo에 커밋되지 않았을 수 있습니다.</p>`;
+      <p class="empty">세션 '${esc(sessionId)}' 로그를 찾을 수 없습니다. 아직 Firestore에 저장되지 않았을 수 있습니다.</p>`;
     return;
   }
   const name = personaName(ctx, s.personaId);
@@ -265,8 +271,7 @@ function renderSession(ctx, sessionId) {
           <span class="tl-n">${esc(st.n)}</span>
           <div><b>${esc(st.action)}</b> ${st.outcome ? outcomeBadge(st.outcome) : ''}</div>
           ${st.thought ? `<div class="thought">💭 속마음 — "${esc(st.thought)}"</div>` : ''}
-          ${st.screenshot ? `<img src="${esc(shotSrc(st.screenshot))}" alt="스텝 ${esc(st.n)} 스크린샷" loading="lazy"
-            style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:8px">` : ''}
+          ${shotHtml(st)}
         </li>`).join('')}
     </ol>
     <div class="card">
@@ -284,10 +289,16 @@ function outcomeBadge(outcome) {
   return `<span class="badge ${cls}">${esc(OUTCOME_LABEL[outcome] || outcome)}</span>`;
 }
 
-function shotSrc(p) {
-  const path = String(p);
-  if (/^(https?:)?\/\//.test(path) || path.startsWith('/')) return path;
-  return `../../data/projects/${pid}/sessions/${path}`;
+/** 스크린샷은 Firebase Storage 등 외부 저장소의 절대 URL로만 들어온다.
+ *  repo 상대경로(구 data/projects/…)는 더 이상 존재하지 않으므로 표시하지 않는다. */
+function shotHtml(st) {
+  if (!st.screenshot) return '';
+  const url = String(st.screenshot).trim();
+  if (!/^https?:\/\//i.test(url)) {
+    return `<p class="small muted" style="margin-top:8px">스크린샷 없음</p>`;
+  }
+  return `<img src="${esc(url)}" alt="스텝 ${esc(st.n)} 스크린샷" loading="lazy"
+    style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-top:8px">`;
 }
 </script>
 </body>

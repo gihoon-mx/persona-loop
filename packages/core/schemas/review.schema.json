@@ -9,7 +9,7 @@
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "projectId": { "type": "string" },
     "personaId": { "type": "string" },
-    "sessionId": { "type": "string", "description": "근거가 되는 사용 세션 로그 (data/projects/<id>/sessions/)" },
+    "sessionId": { "type": "string", "description": "근거가 되는 사용 세션 로그 (Firestore `projects/{pid}/sessions/{id}`)" },
     "type": {
       "type": "string",
       "enum": ["appstore", "blog", "sns", "interview", "ux_report"],

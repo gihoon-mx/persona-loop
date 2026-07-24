@@ -1,0 +1,27 @@
+{
+  "comment": "가상의 데모 데이터. 관리자가 설정 화면에서 Firestore로 적재한다. 실제 응답·개인정보 없음.",
+  "project": {
+    "id": "sample",
+    "name": "샘플 프로젝트",
+    "description": "Persona Loop의 전체 흐름(서베이 → 페르소나 → 리뷰)을 보여주는 예시 데이터. 실제 응답이 아니며 언제든 삭제 가능.",
+    "demoUrl": "https://gihoon-mx.github.io/now-here-demo/",
+    "status": "active"
+  },
+  "collections": {
+    "surveys": [
+      "sv-sample.json"
+    ],
+    "personas": [
+      "p-minseo.json",
+      "p-yeongho.json"
+    ],
+    "reviews": [
+      "rv-minseo-appstore.json",
+      "rv-minseo-sns.json",
+      "rv-yeongho-interview.json"
+    ],
+    "sessions": [
+      "ss-minseo-01.json"
+    ]
+  }
+}

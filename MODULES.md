@@ -4,17 +4,20 @@
 
 | ID | 모듈 | 경로 | 설명 | 상태 |
 |----|------|------|------|------|
-| M01 | site | `index.html` | 프로젝트 목록/생성 + 프로젝트 홈 (모듈 진입점) | ✅ v0.2 |
-| M02 | core | `packages/core/` | 스키마·데이터 API (Firebase/static 이중 모드)·공용 스타일 | ✅ v0.2 |
-| M03 | survey-results | `apps/survey/` | 서베이 결과 대시보드 (실시간 집계 + 커밋된 집계) | ✅ v0.2 |
+| M01 | site | `index.html` | 프로젝트 목록/생성 + 프로젝트 홈(모듈 진입점) + **설정 화면**(관리자 추가·삭제, 샘플 시드 적재) | ✅ v0.3 |
+| M02 | core | `packages/core/` | 인증·**접근 게이트(`requireAdmin`)**·Firestore 데이터 API·스키마·공용 스타일 | ✅ v0.3 |
+| M03 | survey-results | `apps/survey/` | 서베이 결과 대시보드 (Firestore 응답 실시간 집계) | ✅ v0.3 |
 | M04 | survey-studio | `apps/survey/` | 서베이 생성·CSV 임포트·공개 응답 폼 (코칭 기능은 예정) | 🔶 코칭 예정 |
-| M05 | persona-builder | `agents/persona-builder/` | 서베이 응답 → 페르소나 생성 (Claude API) | 예정 |
-| M06 | persona-app | `apps/persona/` | 페르소나 카드 뷰 + 근거(evidence) 상세 | ✅ v0.2 (뷰어) |
-| M07 | demo-reviewer | `agents/demo-reviewer/` | Playwright + Claude로 데모 사용 + 리뷰 생성 | 예정 |
-| M08 | review-app | `apps/review/` | 타입별 리뷰 뷰어 + 세션 리플레이 | ✅ v0.2 (뷰어) |
-| M09 | infra | `.github/workflows/`, Firebase 설정 | 배포·Agent 실행 파이프라인 | 🔶 Pages 완료, Firebase 대기 |
+| M05 | persona-builder | `agents/persona-builder/` | 서베이 응답 → 페르소나 생성 (Claude API, 결과는 Firestore에 기록) | 예정 |
+| M06 | persona-app | `apps/persona/` | 페르소나 카드 뷰 + 근거(evidence) 상세 | ✅ v0.3 (뷰어) |
+| M07 | demo-reviewer | `agents/demo-reviewer/` | Playwright + Claude로 데모 사용 + 리뷰 생성 (결과는 Firestore에 기록) | 예정 |
+| M08 | review-app | `apps/review/` | 타입별 리뷰 뷰어 + 세션 리플레이 | ✅ v0.3 (뷰어) |
+| M09 | infra | `.github/workflows/`, Firebase 설정 | 배포·보안 규칙·Agent 실행 파이프라인 | 🔶 Pages 완료 / v0.3 규칙 재게시 필요 |
 
 ## 규칙
 - 스키마 변경은 반드시 M02(`packages/core/schemas/`)에서 먼저 — 앱과 에이전트는 스키마를 따른다.
-- `data/projects/<id>/`에는 익명화·집계된 데이터만 커밋 (원본은 Firebase).
+- **관리자 전용 화면은 그리기 전에 `core.requireAdmin(container)`를 통과시킨다.** `false`면 그 즉시 렌더링을 중단한다. 예외는 공개 서베이 응답 폼 하나뿐.
+- **실데이터는 repo에 커밋하지 않는다.** 모든 프로젝트 데이터는 Firestore에만 저장한다. `data/seed/sample/`의 가상 샘플 시드만 예외.
+- 데이터 출력은 반드시 `core.esc()`를 거친다.
+- 관리자 목록은 Firestore `admins` 컬렉션 = 웹 설정 화면에서 관리. OWNER만 `firestore.rules` + `firebase-config.js`에 하드코딩되어 있고, 바꿀 때는 두 곳을 함께 수정한다.
 - 버전: `index.html` footer의 `data-app-ver`를 사용자에게 보이는 변경마다 올린다 (major.minor.patch).

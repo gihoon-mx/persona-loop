@@ -3,6 +3,22 @@
 Persona Loop의 실시간 기능(프로젝트 생성, 서베이 수집, Google 로그인)을 켜기 위한 1회성 셋업.
 **비용: 전부 무료** (Spark 플랜, 카드 등록 불필요). 이 규모(수십~수백 명 응답)는 무료 한도(일 읽기 5만/쓰기 2만) 안에 충분히 들어간다.
 
+---
+
+## ⚠️ 지금 해야 할 일 — 보안 규칙 재게시 (v0.3)
+
+v0.3 "비공개 기본" 전환으로 **`firestore.rules` 파일이 전면 개정됐다.** 콘솔의 규칙은 파일을 커밋한다고 자동으로 바뀌지 않으므로, **직접 다시 붙여넣고 게시해야 한다.**
+
+> **Firebase 콘솔 → Firestore Database → 규칙 탭 → 기존 내용 전체 삭제 → repo의 [`firestore.rules`](../firestore.rules) 내용을 통째로 붙여넣기 → 게시**
+
+이걸 하지 않으면:
+- 예전 규칙(프로젝트·서베이 정의 공개 읽기)이 그대로 살아 있어 **로그인하지 않은 사람이 프로젝트 목록과 서베이 정의를 읽을 수 있다.** 화면은 로그인 게이트로 막혀 있어도 데이터는 안 막힌다 — 게이트는 UI일 뿐이고, 실제 보호는 규칙이 한다.
+- 반대로 `admins` 컬렉션 규칙이 없어 **설정 화면의 관리자 추가·삭제가 실패**한다.
+
+게시 후 확인: 로그아웃 상태(시크릿 창)에서 사이트를 열면 로그인 화면만 보이고, 콘솔의 규칙 편집기 상단에 방금 게시한 시각이 표시된다.
+
+---
+
 ## 현재 진행 상태 (2026-07-25 확인)
 
 | 단계 | 상태 |
@@ -10,40 +26,73 @@ Persona Loop의 실시간 기능(프로젝트 생성, 서베이 수집, Google �
 | 1. 프로젝트 생성 (`persona-loop-de062`) | ✅ 완료 |
 | 2. 웹 앱 등록 + config 반영 | ✅ 완료 (`packages/core/firebase-config.js`) |
 | 3-1. Google 로그인 활성화 | ✅ 완료 |
-| 3-2. 승인된 도메인에 `gihoon-mx.github.io` 추가 | ❌ **미완료** — 배포 사이트 로그인이 실패함 |
-| 4. Firestore 데이터베이스 생성 + 규칙 게시 | ❌ **미완료** — 데이터 읽기/쓰기 불가 |
+| 3-2. 승인된 도메인에 `gihoon-mx.github.io` 추가 | ✅ 완료 |
+| 4. Firestore 데이터베이스 생성 | ✅ 완료 |
+| 4-1. **v0.3 보안 규칙 게시** | ⚠️ **재게시 필요** (위 안내 참고) |
 
-미완료 두 단계를 끝내면 사이트가 완전히 동작한다 (아래 3-4단계 참고). 그전까지는 repo에 커밋된 데이터만 표시되고 화면 상단에 안내 배너가 뜬다.
-
-## 1. 프로젝트 생성 (2분)
+## 1. 프로젝트 생성 (2분) ✅
 1. https://console.firebase.google.com → **프로젝트 추가**
 2. 이름: `persona-loop` → 계속
 3. Google 애널리틱스: **사용 안함** (필요 없음) → 프로젝트 만들기
 
-## 2. 웹 앱 등록 + config 복사 (2분)
+## 2. 웹 앱 등록 + config 복사 (2분) ✅
 1. 프로젝트 개요 화면에서 **`</>` (웹)** 아이콘 클릭
 2. 앱 닉네임: `persona-loop-web` → 앱 등록 (호스팅 체크 불필요 — GitHub Pages 사용)
 3. 화면에 나오는 `const firebaseConfig = { apiKey: ... }` 객체를 통째로 복사
-4. 이 config를 Claude에게 붙여넣어 주거나, 직접 `packages/core/firebase-config.js`의 `null` 자리에 넣고 커밋
-   - ⚠️ 이 값들은 **공개돼도 안전** (비밀키가 아니라 식별자. 실제 보호는 아래 3·4단계의 도메인 제한 + 보안 규칙이 담당)
+4. 이 config를 `packages/core/firebase-config.js`에 넣고 커밋
+   - ⚠️ 이 값들은 **공개돼도 안전** (비밀키가 아니라 식별자. 실제 보호는 3·4단계의 도메인 제한 + 보안 규칙이 담당)
 
-## 3. Google 로그인 활성화 (2분) — ⚠️ 3-2가 남음
-1. 왼쪽 메뉴 **빌드 > Authentication** → 시작하기 ✅
-2. **Sign-in method** 탭 → **Google** 선택 → 사용 설정 토글 ON ✅
-3. 프로젝트 지원 이메일: `gihoon.mx@gmail.com` 선택 → 저장 ✅
-4. ❌ **남은 작업**: **Authentication > Settings 탭 → 승인된 도메인(Authorized domains) → 도메인 추가 → `gihoon-mx.github.io`**
-   - 현재 등록된 도메인은 `localhost`, `persona-loop-de062.firebaseapp.com`, `persona-loop-de062.web.app` 뿐이라 **배포 사이트에서 로그인 시도 시 `unauthorized-domain` 오류**가 난다 (로컬은 정상)
+## 3. Google 로그인 활성화 (2분) ✅
+1. 왼쪽 메뉴 **빌드 > Authentication** → 시작하기
+2. **Sign-in method** 탭 → **Google** 선택 → 사용 설정 토글 ON
+3. 프로젝트 지원 이메일: `gihoon.mx@gmail.com` 선택 → 저장
+4. **Authentication > Settings 탭 → 승인된 도메인(Authorized domains)** 에 `gihoon-mx.github.io` 등록
+   - 등록된 도메인: `localhost`, `persona-loop-de062.firebaseapp.com`, `persona-loop-de062.web.app`, `gihoon-mx.github.io`
+   - 여기 없는 도메인에서 로그인하면 `auth/unauthorized-domain` 오류가 난다
 
-## 4. Firestore 생성 + 보안 규칙 (3분) — ❌ 미완료
-1. 왼쪽 메뉴 **빌드 > Firestore Database** → **데이터베이스 만들기**
-2. 위치: `asia-northeast3 (서울)` → **프로덕션 모드**로 시작
-3. 생성 후 **규칙** 탭 → repo의 [`firestore.rules`](../firestore.rules) 내용을 통째로 붙여넣고 **게시**
-   - 규칙 요약: 프로젝트/서베이 정의는 공개 읽기, 응답 원본 열람은 admin(gihoon.mx@gmail.com)만, 익명 응답 제출은 status가 `open`인 서베이에만 허용
-   - 이 단계 전까지는 Firestore API 자체가 비활성이라 프로젝트 생성·서베이 저장·CSV 임포트가 모두 불가 (앱은 6초 후 정적 데이터로 폴백하고 경고 배너를 표시)
+## 4. Firestore 생성 + 보안 규칙 (3분)
+1. 왼쪽 메뉴 **빌드 > Firestore Database** → **데이터베이스 만들기** ✅
+2. 위치: `asia-northeast3 (서울)` → **프로덕션 모드**로 시작 ✅
+3. **규칙** 탭 → repo의 [`firestore.rules`](../firestore.rules) 내용을 통째로 붙여넣고 **게시** ⚠️ **v0.3 내용으로 다시 해야 함**
+   - v0.3 규칙 요약:
+     - 프로젝트·**서베이 문서**·응답 원본·페르소나·리뷰·세션 — **전부 admin 전용** (서베이 문서에는 집계가 들어 있어 통째로 공개할 수 없다)
+     - 유일한 예외: `projects/{pid}/public-forms/{surveyId}` 문서 **1건**의 읽기와, 그 서베이로의 응답 제출 (공개 응답 링크). 이 문서에는 폼을 그리는 데 필요한 필드(title/description/questions/status)만 복사되며 집계·응답수·응답 원본은 들어가지 않는다
+     - 익명 응답 제출에는 **형태 검증**이 걸려 있다 — 필드 구성(`answers`/`submittedAt`/`source`/`respondent`)이 정확히 일치하고 `source`는 `'live'`, `respondent`는 `null`, `submittedAt`은 서버 시각이어야 통과 (필드 위조·남용 차단)
+     - 목록 조회(`list`)는 admin만 — 응답자는 다른 서베이나 폼의 존재를 알 수 없다
+     - `admins/{email}`: 본인 문서 확인은 로그인 사용자, 목록 조회는 admin, **추가·삭제는 OWNER만**
+     - OWNER(`gihoon.mx@gmail.com`)는 규칙에 하드코딩 — allowlist가 비어도 잠기지 않는다
 
 ## 5. 확인
-config가 커밋·배포되면 https://gihoon-mx.github.io/persona-loop/ 상단의 "읽기 전용" 뱃지가 사라지고 **Google 로그인** 버튼이 나타난다. 로그인하면 admin 뱃지 + "새 프로젝트" 버튼이 보이면 성공.
+1. https://gihoon-mx.github.io/persona-loop/ 접속 → 로그인 화면("이 워크스페이스의 데이터는 비공개입니다")이 뜬다
+2. **Google로 로그인** → OWNER 계정이면 상단에 `owner` 뱃지 + **설정** 버튼, 프로젝트 목록·"새 프로젝트" 버튼이 보이면 성공
+3. 데이터가 하나도 없으면 **설정 화면 → 샘플 데이터 불러오기**로 가상 데모 데이터(`data/seed/sample/`)를 Firestore에 넣어 전체 흐름을 확인할 수 있다. 언제든 삭제해도 된다.
+4. 시크릿 창에서 같은 주소를 열면 로그인 화면만 보여야 한다 — 프로젝트 이름이 보인다면 3단계(규칙 재게시)가 안 된 것이다
+
+## 관리자 추가/삭제
+
+관리자는 **웹에서 관리한다. 코드 수정도 재배포도 필요 없다.**
+
+1. OWNER 계정으로 로그인 → 우측 상단 **설정** 클릭
+2. **관리자** 목록에서 상대방의 **Google 계정 이메일**을 입력하고 추가
+   - 반드시 Google 로그인이 되는 주소여야 한다 (Gmail 또는 Google Workspace 계정). 별칭·오타가 있으면 그 사람은 로그인해도 계속 "접근 권한이 없습니다"를 보게 된다
+   - 추가 즉시 Firestore `admins/<이메일>` 문서가 생성된다. 상대는 사이트에서 Google 로그인만 하면 바로 접근된다 (별도 초대 메일은 발송되지 않으므로 링크는 직접 알려줄 것)
+3. 삭제도 같은 화면에서. 삭제하면 다음 페이지 로드부터 차단된다
+4. 추가·삭제는 **OWNER만** 가능하다. 일반 admin은 목록을 볼 수만 있다 (규칙에서 차단 — 관리자가 스스로 관리자를 늘리는 권한 상승을 막기 위함)
+
+**관리자가 볼 수 있는 것**: 모든 프로젝트의 서베이 정의, **응답 원본**, 페르소나, 리뷰, 세션 로그. 응답에 개인정보가 들어 있을 수 있으므로 추가 전에 한 번 더 생각할 것.
+
+### 소유자(OWNER) 변경
+OWNER는 규칙에 하드코딩된 부트스트랩 계정이라 웹에서 바꿀 수 없다. 바꾸려면 **두 곳을 함께 수정하고 커밋 + 규칙 재게시**해야 한다.
+
+| 파일 | 위치 |
+|------|------|
+| `firestore.rules` | `isOwner()` 안의 이메일 문자열 |
+| `packages/core/firebase-config.js` | `OWNER_EMAIL` 상수 |
+
+한쪽만 고치면 화면과 규칙의 판단이 어긋나 저장이 조용히 실패하거나(규칙만 옛날) 설정 버튼이 안 보인다(config만 옛날).
 
 ## 이후 관리 포인트
-- admin 추가: `packages/core/firebase-config.js`의 `adminEmails` + `firestore.rules`의 이메일 목록 **두 곳을 같이** 수정
+- 관리자 추가·삭제: 위 "관리자 추가/삭제" 참고 (웹 설정 화면 — 코드 수정 불필요)
+- `firestore.rules`를 고쳤다면 **콘솔에 붙여넣고 게시할 때까지 아무 효과도 없다**. 커밋과 게시는 별개다
 - 사용량 확인: 콘솔 > Firestore > 사용량 탭 (무료 한도 접근 시 이메일 경고 옴 — 자동 과금되지 않음)
+- 데이터 백업: 현재 자동 백업은 없다. 프로젝트 단위 스냅샷 내보내기는 향후 과제 (ARCHITECTURE.md §2 참고)

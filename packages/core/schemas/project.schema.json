@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/project.schema.json",
   "title": "Project",
-  "description": "Persona Loop 프로젝트 단위. data/projects/<id>/project.json",
+  "description": "Persona Loop 프로젝트 단위. Firestore `projects/{pid}` 문서 (v0.3부터 repo에는 저장되지 않는다).",
   "type": "object",
   "required": ["id", "name", "demoUrl", "status", "createdAt"],
   "properties": {

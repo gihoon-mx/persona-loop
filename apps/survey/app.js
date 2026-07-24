@@ -1,10 +1,10 @@
 // Persona Loop — Survey 모듈
 // 뷰 라우팅 (쿼리 파라미터, 뒤로가기 유지):
-//   ?p=<pid>                     서베이 목록
+//   ?p=<pid>                     서베이 목록 (admin)
 //   ?p=<pid>&view=new            새 서베이 만들기 (admin)
 //   ?p=<pid>&view=import         CSV 임포트 위저드 (admin)
-//   ?p=<pid>&s=<sid>             상세/결과
-//   ?p=<pid>&s=<sid>&mode=respond  응답자용 공개 폼 (미니멀)
+//   ?p=<pid>&s=<sid>             상세/결과 (admin)
+//   ?p=<pid>&s=<sid>&mode=respond  응답자용 공개 폼 (미니멀 · 유일한 비공개 게이트 예외)
 import * as core from '../../packages/core/core.js';
 
 const { esc, qsParam, state } = core;
@@ -29,20 +29,26 @@ const fail = (e) => {
   app.innerHTML = `<p class="empty">불러오는 중 오류가 발생했습니다: ${core.esc(e.message)}</p>`;
 };
 if (mode === 'respond' && projectId && surveyId) {
-  // 공유용 미니멀 화면 — 상단바 없이 서베이 제목만
+  // 공유용 미니멀 화면 — 상단바·게이트 없이 서베이 제목만 (비로그인 응답자용)
   Promise.resolve(renderRespond(projectId, surveyId)).catch(fail);
 } else {
   core.renderTopbar('../../');
+  Promise.resolve(routeAdminView()).catch(fail);
+}
+
+/** 응답 모드를 제외한 모든 뷰는 admin 게이트 뒤에 있다. */
+async function routeAdminView() {
+  if (!(await core.requireAdmin(app))) return;
   if (!projectId) {
     app.innerHTML = `<p class="empty">프로젝트를 먼저 선택하세요. <a href="../../">← 프로젝트 목록으로</a></p>`;
   } else if (surveyId) {
-    Promise.resolve(renderDetail(projectId, surveyId)).catch(fail);
+    await renderDetail(projectId, surveyId);
   } else if (view === 'import') {
     renderImportWizard(projectId);
   } else if (view === 'new') {
     renderNewSurvey(projectId);
   } else {
-    Promise.resolve(renderList(projectId)).catch(fail);
+    await renderList(projectId);
   }
 }
 
@@ -83,40 +89,33 @@ async function renderList(pid) {
   try { surveys = await core.listSurveys(pid); }
   catch (e) { app.innerHTML = `${crumbHtml(pid)}<p class="empty">서베이를 불러오지 못했습니다: ${esc(e.message)}</p>`; return; }
 
-  const draw = () => {
-    app.innerHTML = `
-      ${crumbHtml(pid)}
-      <div class="section-head" style="margin-top:0">
-        <h2>서베이</h2>
-        ${state.isAdmin ? `<span style="display:flex;gap:8px">
-          <a class="btn" href="?p=${esc(pid)}&view=import">CSV 임포트</a>
-          <a class="btn primary" href="?p=${esc(pid)}&view=new">+ 새 서베이</a>
-        </span>` : ''}
-      </div>
-      <div class="grid cols2">
-        ${surveys.length ? surveys.map((sv) => `
-          <a class="card" href="?p=${esc(pid)}&s=${esc(sv.id)}">
-            <h3>${esc(sv.title)} ${statusBadge(sv.status)}</h3>
-            <p>${esc(sv.description || '')}</p>
-            <p class="small muted">문항 ${(sv.questions || []).length}개 · 응답 ${sv.responseCount || 0}건</p>
-          </a>`).join('')
-          : `<div class="card"><p class="empty" style="padding:24px 0">아직 서베이가 없습니다.${state.isAdmin ? ' 새 서베이를 만들거나 CSV를 임포트해보세요.' : ''}</p></div>`}
-      </div>`;
-    core.renderModeBanner(app);
-  };
-  draw();
-  core.onAuthChange(draw); // admin 여부에 따라 버튼 노출 갱신
+  // 공개 폼으로 들어온 응답은 서베이 문서의 responseCount를 올리지 못한다(익명은 서베이 문서에 쓸 수 없음).
+  // 따라서 실제 개수는 서버 집계로 읽는다.
+  const counts = await Promise.all(surveys.map((sv) => core.countResponses(pid, sv.id).catch(() => null)));
+
+  app.innerHTML = `
+    ${crumbHtml(pid)}
+    <div class="section-head" style="margin-top:0">
+      <h2>서베이</h2>
+      <span style="display:flex;gap:8px">
+        <a class="btn" href="?p=${esc(pid)}&view=import">CSV 임포트</a>
+        <a class="btn primary" href="?p=${esc(pid)}&view=new">+ 새 서베이</a>
+      </span>
+    </div>
+    <div class="grid cols2">
+      ${surveys.length ? surveys.map((sv, i) => `
+        <a class="card" href="?p=${esc(pid)}&s=${esc(sv.id)}">
+          <h3>${esc(sv.title)} ${statusBadge(sv.status)}</h3>
+          <p>${esc(sv.description || '')}</p>
+          <p class="small muted">문항 ${(sv.questions || []).length}개 · 응답 ${counts[i] ?? sv.responseCount ?? 0}건</p>
+        </a>`).join('')
+        : `<div class="card"><p class="empty" style="padding:24px 0">아직 서베이가 없습니다. 새 서베이를 만들거나 CSV를 임포트해보세요.</p></div>`}
+    </div>`;
+  core.renderModeBanner(app);
 }
 
 // ---------- 뷰 1b: 새 서베이 만들기 (admin) ----------
 function renderNewSurvey(pid) {
-  if (state.mode === 'static') {
-    app.innerHTML = `${crumbHtml(pid, ` · <a href="?p=${esc(pid)}">서베이 목록</a>`)}
-      <p class="empty">서베이 생성은 Firebase 연결 후 사용 가능합니다. <a href="../../docs/FIREBASE-SETUP.md" target="_blank">연결 방법</a></p>`;
-    core.renderModeBanner(app);
-    return;
-  }
-
   const meta = { id: '', title: '', description: '' };
   const blankQ = () => ({ text: '', type: 'single', options: '', scale: 5, dimension: '' });
   let qs = [blankQ()];
@@ -140,9 +139,6 @@ function renderNewSurvey(pid) {
     app.innerHTML = `
       ${crumbHtml(pid, ` · <a href="?p=${esc(pid)}">서베이 목록</a>`)}
       <div class="section-head" style="margin-top:0"><h2>새 서베이</h2></div>
-      <div class="banner info" data-admin-hint style="display:${state.isAdmin ? 'none' : 'block'}">
-        저장하려면 admin 계정으로 로그인해야 합니다.
-      </div>
       <div class="card">
         <label>ID (소문자·숫자·하이픈, 변경 불가)</label>
         <input type="text" data-sv-id value="${esc(meta.id)}" pattern="[a-z0-9-]+" placeholder="sv-usage-2026">
@@ -196,7 +192,7 @@ function renderNewSurvey(pid) {
       }
       ev.target.disabled = true;
       try {
-        await core.saveSurvey(pid, {
+        await core.createSurvey(pid, {
           id, projectId: pid, title, description: meta.description.trim(),
           status: 'draft', source: 'native', auth: 'anonymous',
           responseCount: 0, createdAt: today(), questions,
@@ -206,10 +202,6 @@ function renderNewSurvey(pid) {
     });
   };
   draw();
-  core.onAuthChange(() => {
-    const hint = app.querySelector('[data-admin-hint]');
-    if (hint) hint.style.display = state.isAdmin ? 'none' : 'block';
-  });
 }
 
 // ---------- CSV 파서 (문자 단위 상태머신 — 따옴표 필드, 필드 내 콤마/개행, CRLF, BOM) ----------
@@ -266,14 +258,6 @@ function isTimestampHeader(h) {
 // ---------- 뷰 2: CSV 임포트 위저드 ----------
 function renderImportWizard(pid) {
   const crumb = crumbHtml(pid, ` · <a href="?p=${esc(pid)}">서베이 목록</a>`);
-  if (state.mode === 'static') {
-    app.innerHTML = `${crumb}
-      <div class="section-head" style="margin-top:0"><h2>CSV 임포트</h2></div>
-      <p class="empty">CSV 임포트는 Firebase 연결 후 사용 가능합니다.<br>
-      <a href="../../docs/FIREBASE-SETUP.md" target="_blank">FIREBASE-SETUP 안내 보기</a></p>`;
-    core.renderModeBanner(app);
-    return;
-  }
 
   // 위저드 상태
   const wz = { headers: [], dataRows: [], cols: [], tsIndex: -1 };
@@ -285,9 +269,6 @@ function renderImportWizard(pid) {
 
   const headHtml = (n) => `${crumb}
     <div class="section-head" style="margin-top:0"><h2>CSV 임포트</h2></div>
-    <div class="banner info" data-admin-hint style="display:${state.isAdmin ? 'none' : 'block'}">
-      실제 저장(3단계)은 admin 계정으로 로그인해야 가능합니다.
-    </div>
     ${stepsHtml(n)}`;
 
   // --- 1단계: 파일 선택 ---
@@ -442,7 +423,7 @@ function renderImportWizard(pid) {
       try {
         say('서베이 정의 저장 중…');
         // responseCount는 넣지 않는다 — importResponses가 increment로 갱신 (이중 카운트 방지)
-        await core.saveSurvey(pid, {
+        await core.createSurvey(pid, {
           id, projectId: pid, title, description,
           status: 'imported', source: 'csv-import', auth: 'anonymous',
           createdAt: today(), questions,
@@ -461,10 +442,6 @@ function renderImportWizard(pid) {
   };
 
   drawStep1();
-  core.onAuthChange(() => {
-    const hint = app.querySelector('[data-admin-hint]');
-    if (hint) hint.style.display = state.isAdmin ? 'none' : 'block';
-  });
 }
 
 // ---------- 집계 ----------
@@ -572,20 +549,14 @@ async function renderDetail(pid, sid) {
   }
   document.title = `${survey.title} — Persona Loop`;
 
-  let seq = 0;
   const draw = async () => {
-    const my = ++seq;
-
-    // 데이터 소스 우선순위: (a) firebase+admin 원본 → (b) 커밋된 aggregates → (c) 없음
+    // 데이터 소스: (a) Firestore 원본 응답 실시간 집계 → (b) 서베이 문서에 저장된 aggregates → (c) 없음
     let agg = null, aggSource = null;
-    if (state.mode === 'firebase' && state.isAdmin) {
-      try {
-        const responses = await core.listResponses(pid, sid);
-        if (responses.length) { agg = computeAggregates(survey, responses); aggSource = 'live'; }
-      } catch { /* 권한 없음 등 — 아래 fallback */ }
-    }
-    if (!agg && survey.aggregates) { agg = survey.aggregates; aggSource = 'committed'; }
-    if (my !== seq) return; // 이후 draw가 시작됐으면 폐기
+    try {
+      const responses = await core.listResponses(pid, sid);
+      if (responses.length) { agg = computeAggregates(survey, responses); aggSource = 'live'; }
+    } catch { /* 읽기 실패 — 아래 fallback */ }
+    if (!agg && survey.aggregates) { agg = survey.aggregates; aggSource = 'stored'; }
 
     const questions = survey.questions || [];
     const respondUrl = `${location.origin}${location.pathname}?p=${encodeURIComponent(pid)}&s=${encodeURIComponent(sid)}&mode=respond`;
@@ -599,23 +570,27 @@ async function renderDetail(pid, sid) {
       <p class="small muted">문항 ${questions.length}개 · 응답 ${agg?.responseCount ?? survey.responseCount ?? 0}건
         ${survey.source ? ` · 출처: ${esc(survey.source)}` : ''}
         ${survey.createdAt ? ` · ${esc(survey.createdAt)}` : ''}</p>
-      ${state.isAdmin && state.mode === 'firebase' ? `
-        <div class="card" style="margin-top:14px">
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <span class="small muted">상태</span>
-            <select data-status style="width:auto">
-              ${['draft', 'open', 'closed'].map((s) =>
-                `<option value="${s}"${survey.status === s ? ' selected' : ''}>${esc(STATUS_LABELS[s])}</option>`).join('')}
-              ${survey.status === 'imported' ? `<option value="imported" selected>${esc(STATUS_LABELS.imported)}</option>` : ''}
-            </select>
-            <button class="btn" data-copy-link>응답 링크 복사</button>
-            ${agg ? `<button class="btn" data-download>집계 JSON 다운로드</button>` : ''}
-          </div>
-          <p class="small muted" style="margin-top:8px">다운로드한 JSON을 <code>data/projects/${esc(pid)}/surveys/${esc(sid)}.json</code>으로 커밋하면 정적 모드에서도 결과가 보입니다.</p>
-        </div>` : ''}
+      <div class="card" style="margin-top:14px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span class="small muted">상태</span>
+          <select data-status style="width:auto">
+            ${['draft', 'open', 'closed'].map((s) =>
+              `<option value="${s}"${survey.status === s ? ' selected' : ''}>${esc(STATUS_LABELS[s])}</option>`).join('')}
+            ${survey.status === 'imported' ? `<option value="imported" selected>${esc(STATUS_LABELS.imported)}</option>` : ''}
+          </select>
+          <button class="btn" data-copy-link>응답 링크 복사</button>
+          ${agg ? `<button class="btn" data-download
+            title="서베이 정의와 집계 결과를 JSON 한 파일로 내려받습니다 (백업·외부 분석용)">집계 JSON 내보내기</button>` : ''}
+        </div>
+        <p class="small muted" style="margin-top:8px">
+          상태를 <b>진행 중</b>으로 두면 링크를 가진 누구나 로그인 없이 <b>문항만</b> 볼 수 있습니다
+          (집계·응답 원본은 공개되지 않습니다). 마감하면 링크는 즉시 닫힙니다.
+          ${agg ? '내보낸 JSON은 백업·외부 분석용이며 사이트 표시에는 쓰이지 않습니다 (데이터는 Firestore에만 저장됨).' : ''}
+        </p>
+      </div>
       <div class="section-head"><h2>결과</h2>
         ${aggSource === 'live' ? `<span class="badge accent">원본 응답 실시간 집계</span>`
-          : aggSource === 'committed' ? `<span class="badge">커밋된 집계 (${esc(agg.computedAt || '')})</span>` : ''}
+          : aggSource === 'stored' ? `<span class="badge">저장된 집계 (${esc(agg.computedAt || '')})</span>` : ''}
       </div>
       ${agg
         ? questions.map((q, i) => `
@@ -626,8 +601,8 @@ async function renderDetail(pid, sid) {
             </div>
             ${questionResultHtml(q, agg.byQuestion?.[q.id], agg.responseCount)}
           </div>`).join('')
-        : `<p class="empty">응답 없음 또는 열람 권한 없음<br>
-           <span class="small">원본 응답 열람은 admin 로그인 필요 · 정적 모드에서는 커밋된 집계(aggregates)만 표시됩니다</span></p>`}`;
+        : `<p class="empty">아직 응답이 없습니다.<br>
+           <span class="small">상태를 <b>진행 중</b>으로 바꾼 뒤 응답 링크를 공유해 응답을 모아보세요.</span></p>`}`;
     core.renderModeBanner(app);
 
     app.querySelector('[data-status]')?.addEventListener('change', async (ev) => {
@@ -645,37 +620,35 @@ async function renderDetail(pid, sid) {
       } catch { prompt('아래 링크를 복사하세요:', respondUrl); }
     });
     app.querySelector('[data-download]')?.addEventListener('click', () => {
+      // 백업·외부 분석용 내보내기 (repo에 커밋하지 않는다 — 원본은 Firestore가 유일)
       const out = { ...survey, responseCount: agg.responseCount ?? survey.responseCount, aggregates: agg };
       downloadJson(out, `${sid}.json`);
     });
   };
 
-  draw();
-  core.onAuthChange(() => draw());
+  await draw();
 }
 
 // ---------- 뷰 4: 응답 모드 (공개 폼) ----------
 async function renderRespond(pid, sid) {
-  const survey = await core.getSurvey(pid, sid);
-  if (!survey) {
-    app.innerHTML = `<p class="empty">서베이를 찾을 수 없습니다.</p>`;
+  // 응답자는 서베이 문서가 아니라 공개 폼 문서(public-forms)를 읽는다.
+  // 서베이 문서에는 집계·응답 원본이 들어 있어 공개하면 안 되기 때문 (firestore.rules 참고).
+  // 공개 폼은 status가 'open'일 때만 존재하므로 null과 non-open은 응답자에게 같은 상황이다.
+  const survey = await core.getPublicForm(pid, sid);
+  if (!survey || survey.status !== 'open') {
+    app.innerHTML = `
+      ${survey ? `<h2 style="margin:24px 0 8px">${esc(survey.title)}</h2>` : ''}
+      <p class="empty">이 서베이는 현재 응답을 받지 않습니다 (마감되었거나 아직 공개되지 않음).
+        ${state.degraded ? '<br><span class="small">연결 상태가 불안정할 수 있습니다. 잠시 후 새로고침해 주세요.</span>' : ''}</p>`;
     return;
   }
   document.title = survey.title;
-
-  if (survey.status !== 'open') {
-    app.innerHTML = `
-      <h2 style="margin:24px 0 8px">${esc(survey.title)}</h2>
-      <p class="empty">마감된 서베이입니다. 참여해주셔서 감사합니다.</p>`;
-    return;
-  }
 
   const questions = survey.questions || [];
   app.innerHTML = `
     <h2 style="margin:24px 0 4px">${esc(survey.title)}</h2>
     ${survey.description ? `<p class="muted" style="margin-bottom:8px">${esc(survey.description)}</p>` : ''}
     <p class="small muted" style="margin-bottom:20px">익명으로 제출됩니다 · 모든 문항 필수</p>
-    ${state.mode === 'static' ? `<div class="banner">지금은 읽기 전용 모드라 응답을 제출할 수 없습니다.</div>` : ''}
     <form data-respond-form novalidate>
       ${questions.map((q, i) => {
         const name = esc(q.id);
@@ -703,7 +676,7 @@ async function renderRespond(pid, sid) {
         </div>`;
       }).join('')}
       <div style="display:flex;justify-content:flex-end;margin-top:20px">
-        <button type="submit" class="btn primary" ${state.mode === 'static' ? 'disabled' : ''}>제출하기</button>
+        <button type="submit" class="btn primary">제출하기</button>
       </div>
     </form>`;
 

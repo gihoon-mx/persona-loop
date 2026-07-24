@@ -62,6 +62,12 @@ th { color:var(--muted); font-weight:600; font-size:.8rem; }
 .bar-fill { background:var(--accent); height:100%; border-radius:6px; }
 .bar-n { color:var(--muted); font-size:.78rem; text-align:right; }
 
+/* 접근 게이트 (비로그인·권한 없음 화면) */
+.gate { text-align:center; padding:72px 20px 56px; }
+.gate h2 { font-size:1.5rem; letter-spacing:-0.01em; margin-bottom:10px; }
+.gate p { color:var(--muted); font-size:.92rem; }
+.gate p + p { margin-top:22px; }
+
 /* 기타 */
 .empty { text-align:center; color:var(--muted); padding:56px 20px; font-size:.92rem; }
 .stars { color:#e8a33d; letter-spacing:2px; }

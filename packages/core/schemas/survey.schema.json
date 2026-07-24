@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/survey.schema.json",
   "title": "Survey",
-  "description": "서베이 정의. 응답 원본은 Firestore에, repo에는 정의(definition)와 집계(aggregates)만 커밋한다.",
+  "description": "서베이 정의. 이 문서(정의 + 집계)는 Firestore `projects/{pid}/surveys/{sid}`에 있고 admin 전용이다. 응답 원본은 하위 `responses` 컬렉션에 있으며 역시 admin 전용. 비로그인 응답자에게 공개되는 것은 문항 등 폼 렌더링에 필요한 필드만 복사한 별도 문서 `projects/{pid}/public-forms/{sid}`뿐이다.",
   "type": "object",
   "required": ["id", "projectId", "title", "status", "questions"],
   "properties": {

@@ -25,7 +25,7 @@ blockquote.quote .src { display:block; margin-top:6px; font-size:.75rem; color:v
 <body>
 <header class="topbar"></header>
 <main id="app"><p class="empty">불러오는 중…</p></main>
-<footer class="site">Persona Loop <span data-app-ver>v0.2.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
+<footer class="site">Persona Loop <span data-app-ver>v0.3.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
 
 <script type="module">
 import * as core from '../../packages/core/core.js';
@@ -43,15 +43,20 @@ const BIAS = { generous: '별점 후함', neutral: '별점 중립', harsh: '별�
 const NET = { fast: '빠름', normal: '보통', slow: '느림' };
 const VERB = { terse: '짧게 씀', normal: '보통 분량', long: '길게 씀' };
 
-if (!pid) {
-  app.innerHTML = `<p class="empty">프로젝트를 먼저 선택하세요.<br><br><a href="../../">← 프로젝트 목록으로</a></p>`;
-} else {
-  main().catch((e) => {
-    app.innerHTML = `<p class="empty">불러오는 중 오류가 발생했습니다: ${esc(e.message)}</p>`;
-  });
-}
+main().catch((e) => {
+  app.innerHTML = `<p class="empty">불러오는 중 오류가 발생했습니다: ${esc(e.message)}</p>`;
+});
 
 async function main() {
+  await core.initCore();
+  // 이 화면은 전체가 admin 전용이다. 게이트를 먼저 통과한 뒤에만 Firestore를 읽는다.
+  if (!(await core.requireAdmin(app))) return;
+
+  if (!pid) {
+    app.innerHTML = `<p class="empty">프로젝트를 먼저 선택하세요.<br><br><a href="../../">← 프로젝트 목록으로</a></p>`;
+    return;
+  }
+
   const [project, personas] = await Promise.all([
     core.getProject(pid),
     core.listArtifacts(pid, 'personas'),
@@ -97,15 +102,15 @@ function renderList(project, personas) {
       </div>`
       : `
       <div class="card">
-        <p class="empty" style="padding:28px 0 8px">아직 이 프로젝트에 페르소나가 없습니다.</p>
+        <p class="empty" style="padding:28px 0 8px">아직 페르소나가 없습니다.</p>
         <div style="max-width:600px; margin:0 auto; padding:0 4px 20px;">
           <p class="small muted">페르소나는 다음 파이프라인으로 만들어집니다.</p>
           <ol class="pipeline-steps">
             <li>Survey 모듈에서 서베이 응답을 수집합니다.</li>
-            <li><b>persona-builder Agent</b>가 응답을 클러스터링해 페르소나를 생성합니다 — Claude API를 사용하며, 실행 전에 예상 비용을 고지합니다.</li>
-            <li>모든 특성이 실제 응답 근거(evidence)에 연결된 페르소나 JSON이 repo에 커밋되어 이 화면에 나타납니다.</li>
+            <li>응답이 쌓이면 <b>persona-builder Agent(M05)</b>가 응답을 클러스터링해 근거가 연결된 페르소나를 생성합니다 — Claude API를 사용하며, 실행 전에 예상 비용을 고지합니다.</li>
+            <li>모든 특성이 실제 응답 근거(evidence)에 연결된 페르소나가 <b>Firestore에 저장</b>되어 이 화면에 나타납니다.</li>
           </ol>
-          <p class="small muted">생성 기능은 <b>M05(persona-builder, GitHub Actions)</b>에서 제공 예정입니다. 이 모듈은 커밋된 페르소나를 보는 뷰어입니다.</p>
+          <p class="small muted">생성 기능은 <b>M05(persona-builder)</b>에서 제공 예정입니다. 이 모듈은 저장된 페르소나를 보는 뷰어입니다.</p>
         </div>
       </div>`}`;
 }

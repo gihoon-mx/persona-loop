@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/project.schema.json",
+  "title": "Project",
+  "description": "Persona Loop 프로젝트 단위. data/projects/<id>/project.json",
+  "type": "object",
+  "required": ["id", "name", "demoUrl", "status", "createdAt"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "demoUrl": { "type": "string", "format": "uri", "description": "Agent가 사용할 데모 서비스 URL" },
+    "repo": { "type": "string", "description": "데모 서비스의 repo (agent bridge 작업 대상)" },
+    "status": { "type": "string", "enum": ["active", "paused", "archived"] },
+    "surveyIds": { "type": "array", "items": { "type": "string" } },
+    "personaIds": { "type": "array", "items": { "type": "string" } },
+    "createdAt": { "type": "string", "format": "date" }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/persona.schema.json",
+  "title": "Persona",
+  "description": "서베이 응답 기반 페르소나. 모든 특성은 evidence로 실제 응답에 연결되어야 한다.",
+  "type": "object",
+  "required": ["id", "projectId", "name", "summary", "sourceSurveyIds", "traits", "voice"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "projectId": { "type": "string" },
+    "name": { "type": "string", "description": "가명 (예: 지연, 34, 워킹맘)" },
+    "summary": { "type": "string", "description": "한 문단 소개" },
+    "sourceSurveyIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "clusterInfo": { "type": "string", "description": "어떤 응답자 그룹(클러스터)을 대표하는지, 대략 몇 명 규모인지" },
+    "demographics": {
+      "type": "object",
+      "properties": {
+        "age": { "type": "string" }, "occupation": { "type": "string" },
+        "location": { "type": "string" }, "household": { "type": "string" }
+      }
+    },
+    "traits": { "type": "array", "items": { "$ref": "#/$defs/evidencedItem" } },
+    "goals": { "type": "array", "items": { "$ref": "#/$defs/evidencedItem" } },
+    "painPoints": { "type": "array", "items": { "$ref": "#/$defs/evidencedItem" } },
+    "techProfile": {
+      "type": "object",
+      "properties": {
+        "savviness": { "type": "string", "enum": ["low", "mid", "high"] },
+        "device": { "type": "string", "description": "주 사용 기기 — 데모 세션의 viewport 결정" },
+        "network": { "type": "string", "enum": ["fast", "normal", "slow"] }
+      }
+    },
+    "voice": {
+      "type": "object",
+      "description": "리뷰 리얼리즘의 핵심 — 이 페르소나가 글을 쓰는 방식",
+      "properties": {
+        "tone": { "type": "string", "description": "예: 직설적, 조심스러움, 이모지 많음" },
+        "verbosity": { "type": "string", "enum": ["terse", "normal", "long"] },
+        "ratingBias": { "type": "string", "enum": ["generous", "neutral", "harsh"] },
+        "sampleQuote": { "type": "string" }
+      }
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "generatedBy": { "type": "string", "description": "모델 ID" },
+    "createdAt": { "type": "string", "format": "date" }
+  },
+  "$defs": {
+    "evidencedItem": {
+      "type": "object",
+      "required": ["text", "evidence"],
+      "properties": {
+        "text": { "type": "string" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["surveyId", "questionId"],
+            "properties": {
+              "surveyId": { "type": "string" },
+              "questionId": { "type": "string" },
+              "quote": { "type": "string", "description": "익명화된 응답 인용 또는 집계 수치 (예: '해당 클러스터 71%가 …')" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

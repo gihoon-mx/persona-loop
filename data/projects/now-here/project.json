@@ -1,0 +1,11 @@
+{
+  "id": "now-here",
+  "name": "Now Here",
+  "description": "동 단위 행정구역 경계 뷰어 (Google Maps + Firebase Google 로그인)",
+  "demoUrl": "https://gihoon-mx.github.io/now-here-demo/",
+  "repo": "gihoon-mx/now-here-demo",
+  "status": "active",
+  "surveyIds": [],
+  "personaIds": [],
+  "createdAt": "2026-07-25"
+}

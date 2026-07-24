@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/survey.schema.json",
+  "title": "Survey",
+  "description": "서베이 정의. 응답 원본은 Firestore에, repo에는 정의(definition)와 집계(aggregates)만 커밋한다.",
+  "type": "object",
+  "required": ["id", "projectId", "title", "status", "questions"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "projectId": { "type": "string" },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "status": { "type": "string", "enum": ["draft", "open", "closed", "imported"] },
+    "source": { "type": "string", "enum": ["native", "google-forms", "csv-import"], "default": "native" },
+    "auth": {
+      "type": "string",
+      "enum": ["anonymous", "google"],
+      "default": "anonymous",
+      "description": "응답자 인증 요구. anonymous=링크만으로 응답, google=중복 방지용 로그인"
+    },
+    "responseCount": { "type": "integer", "minimum": 0 },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["single", "multi", "likert", "open", "number", "rank"] },
+          "text": { "type": "string" },
+          "options": { "type": "array", "items": { "type": "string" } },
+          "scale": { "type": "integer", "description": "likert 척도 (5 또는 7)" },
+          "personaDimension": {
+            "type": "string",
+            "enum": ["demographics", "context", "goals", "painPoints", "behavior", "techSavvy", "attitude", "other"],
+            "description": "이 문항이 페르소나의 어떤 차원을 밝히는지 — 서베이 코칭·페르소나 근거 연결의 기준"
+          }
+        }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date" }
+  }
+}

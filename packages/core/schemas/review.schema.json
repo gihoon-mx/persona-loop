@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/review.schema.json",
+  "title": "Review",
+  "description": "페르소나 Agent가 데모 사용 세션을 근거로 작성한 리뷰. AI 생성물임을 뷰어에 항상 표시한다.",
+  "type": "object",
+  "required": ["id", "projectId", "personaId", "type", "body", "sessionId", "createdAt"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "projectId": { "type": "string" },
+    "personaId": { "type": "string" },
+    "sessionId": { "type": "string", "description": "근거가 되는 사용 세션 로그 (data/projects/<id>/sessions/)" },
+    "type": {
+      "type": "string",
+      "enum": ["appstore", "blog", "sns", "interview", "ux_report"],
+      "description": "appstore=별점+제목+본문, blog=장문 사용기, sns=짧은 스레드, interview=Q&A 녹취록, ux_report=전문가형 리포트"
+    },
+    "rating": { "type": "number", "minimum": 1, "maximum": 5, "description": "appstore 타입 필수" },
+    "title": { "type": "string" },
+    "body": { "type": "string" },
+    "pros": { "type": "array", "items": { "type": "string" } },
+    "cons": { "type": "array", "items": { "type": "string" } },
+    "suggestions": { "type": "array", "items": { "type": "string" }, "description": "개선 제안 — 서비스 개선 루프의 입력" },
+    "generatedBy": { "type": "string", "description": "모델 ID" },
+    "createdAt": { "type": "string", "format": "date" }
+  }
+}

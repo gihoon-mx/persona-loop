@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/session.schema.json",
+  "title": "UsageSession",
+  "description": "페르소나 Agent의 데모 사용 여정 로그 — '실제로 써봤다'의 증거. 리뷰 뷰어에서 세션 리플레이로 표시.",
+  "type": "object",
+  "required": ["id", "projectId", "personaId", "scenario", "steps", "createdAt"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "projectId": { "type": "string" },
+    "personaId": { "type": "string" },
+    "scenario": { "type": "string", "description": "페르소나의 목표 시나리오 (예: 퇴근길에 우리 동네 경계 확인하기)" },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "viewport": { "type": "string", "description": "예: 390x844 (iPhone)" },
+        "network": { "type": "string", "enum": ["fast", "normal", "slow"] },
+        "geolocation": { "type": "string", "description": "mock 위치 (agent bridge)" }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["n", "action", "thought"],
+        "properties": {
+          "n": { "type": "integer" },
+          "action": { "type": "string", "description": "수행한 조작 (예: '지도에서 현재 위치 버튼 탭')" },
+          "thought": { "type": "string", "description": "페르소나의 속마음 (리뷰의 원재료)" },
+          "screenshot": { "type": "string", "description": "스텝 스크린샷 상대경로" },
+          "outcome": { "type": "string", "enum": ["ok", "confused", "error", "gave_up"] }
+        }
+      }
+    },
+    "result": { "type": "string", "enum": ["completed", "partial", "abandoned"] },
+    "durationSec": { "type": "number" },
+    "costUsd": { "type": "number", "description": "이 세션의 Claude API 비용 (고지용)" },
+    "createdAt": { "type": "string", "format": "date" }
+  }
+}

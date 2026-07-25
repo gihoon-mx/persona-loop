@@ -8,15 +8,50 @@
 <style>
 /* persona 전용 최소 스타일 */
 .persona-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.badge.warn { color:var(--warn-fg); border-color:var(--warn-border); background:var(--warn-bg); }
+.badge.danger { color:var(--danger); border-color:var(--danger); }
+
+/* 근거 응답자 칩 */
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.chip { display:inline-block; font-size:.78rem; padding:3px 10px; border-radius:99px; border:1px solid var(--border); color:var(--muted); background:var(--bg); }
+.chip.primary { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); font-weight:600; }
+
+/* evidencedItem 목록 (behaviorModel · traits · goals · painPoints 공용) */
+.evi-list { list-style:none; padding:0; margin:8px 0 0; }
+ol.evi-list { list-style:decimal; padding-left:22px; }
+ol.evi-list li::marker { color:var(--accent); font-weight:700; font-size:.86rem; }
 .evi-item { padding:10px 0; border-bottom:1px solid var(--border); }
 .evi-item:last-child { border-bottom:none; padding-bottom:2px; }
 .evi-text { font-size:.94rem; }
+.evi-list.warn .evi-text { color:var(--danger); }
+.no-evi { font-size:.76rem; color:var(--muted); margin-top:4px; }
 details.evi { margin-top:4px; }
 details.evi summary { cursor:pointer; font-size:.78rem; color:var(--accent); user-select:none; }
 details.evi summary:hover { text-decoration:underline; }
 blockquote.quote { margin:8px 0 2px; padding:10px 14px; border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 8px 8px 0; font-size:.87rem; font-style:italic; }
+blockquote.quote .who { display:block; margin-bottom:4px; font-size:.75rem; font-style:normal; font-weight:700; color:var(--accent); letter-spacing:.02em; }
 blockquote.quote .src { display:block; margin-top:6px; font-size:.75rem; color:var(--muted); font-style:normal; }
+
+/* behaviorModel */
+.bm-block { margin-top:16px; }
+.bm-block:first-of-type { margin-top:8px; }
+.bm-block > h4 { font-size:.84rem; color:var(--muted); font-weight:700; letter-spacing:.02em; }
+.bm-card { border:1px solid var(--accent); background:var(--accent-soft); }
+.bm-dispo { display:flex; flex-wrap:wrap; gap:18px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); font-size:.82rem; }
+.bm-dispo b { font-weight:600; color:var(--muted); margin-right:6px; font-size:.78rem; }
+
+/* 응답 프로필 원본 */
+.table-wrap { overflow-x:auto; margin-top:10px; }
+.table-wrap table { min-width:520px; }
+td.ans { font-weight:600; }
+td.read { color:var(--muted); font-size:.82rem; }
+.contradict { border:1px solid var(--warn-border); background:var(--warn-bg); border-radius:var(--radius); padding:12px 16px; margin-top:12px; }
+.contradict h4 { font-size:.86rem; color:var(--warn-fg); }
+.contradict ul { margin:6px 0 0; padding-left:18px; font-size:.86rem; }
+.contradict li { margin:4px 0; }
+
 .kv-caption { font-size:.77rem; color:var(--muted); margin-top:10px; }
+.section-caption { font-size:.8rem; color:var(--muted); margin:-4px 0 10px; }
 .detail-sub { font-size:.8rem; color:var(--muted); margin:-6px 0 18px; }
 .pipeline-steps { padding-left:20px; font-size:.86rem; color:var(--muted); margin:10px 0; }
 .pipeline-steps li { margin:6px 0; }
@@ -25,7 +60,7 @@ blockquote.quote .src { display:block; margin-top:6px; font-size:.75rem; color:v
 <body>
 <header class="topbar"></header>
 <main id="app"><p class="empty">불러오는 중…</p></main>
-<footer class="site">Persona Loop <span data-app-ver>v0.4.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
+<footer class="site">Persona Loop <span data-app-ver>v0.5.0</span> · <a href="https://github.com/gihoon-mx/persona-loop">GitHub</a> · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
 
 <script type="module">
 import * as core from '../../packages/core/core.js';
@@ -42,6 +77,10 @@ const SAVVY = { low: '테크 서툼', mid: '테크 보통', high: '테크 능숙
 const BIAS = { generous: '별점 후함', neutral: '별점 중립', harsh: '별점 짠편' };
 const NET = { fast: '빠름', normal: '보통', slow: '느림' };
 const VERB = { terse: '짧게 씀', normal: '보통 분량', long: '길게 씀' };
+const BASIS = { individual: '개인 응답 1명', cluster: '유사 패턴 묶음' };
+const CONF = { low: '신뢰도 낮음', mid: '신뢰도 보통', high: '신뢰도 높음' };
+const EFFORT = { low: '못 찾으면 금방 닫음', mid: '어느 정도 버팀', high: '될 때까지 파고듦' };
+const HELP = { never: '도움말 안 찾음', rarely: '거의 안 찾음', often: '막히면 바로 찾음' };
 
 main().catch((e) => {
   app.innerHTML = `<p class="empty">불러오는 중 오류가 발생했습니다: ${esc(e.message)}</p>`;
@@ -79,26 +118,124 @@ async function main() {
   core.renderModeBanner(app);
 }
 
+// ---------- 공용 헬퍼 ----------
+/** 이 페르소나의 중심 응답자 라벨들 (primary 우선, 없으면 answerProfile) */
+function primaryLabels(p) {
+  const src = (p.sourceRespondents || []).filter((r) => r && r.respondentLabel);
+  const pri = src.filter((r) => r.role === 'primary');
+  const picked = (pri.length ? pri : src).map((r) => r.respondentLabel);
+  if (picked.length) return picked;
+  return p.answerProfile && p.answerProfile.respondentLabel ? [p.answerProfile.respondentLabel] : [];
+}
+
+function confBadge(p) {
+  const lv = p.confidence && p.confidence.level;
+  if (!lv) return '';
+  const cls = lv === 'low' ? 'badge warn' : lv === 'high' ? 'badge ok' : 'badge';
+  return `<span class="${cls}">${esc(CONF[lv] || lv)}</span>`;
+}
+
+function basisBadge(p) {
+  if (!p.basis) return '';
+  const n = p.basis === 'cluster' && p.clusterSize ? ` ${p.clusterSize}명` : '';
+  return `<span class="badge accent">${esc(BASIS[p.basis] || p.basis)}${esc(n)}</span>`;
+}
+
+/** 응답값 표시 (복수 선택 배열 · 숫자 척도 · 빈 값 모두 처리) */
+function fmtAnswer(v) {
+  if (Array.isArray(v)) return v.length ? v.join(', ') : '—';
+  if (v === null || v === undefined || v === '') return '—';
+  return String(v);
+}
+
+/** 문항 텍스트 해석기 — answerProfile에 questionText가 있으면 그걸 우선 쓰고, 없으면 서베이 정의에서 찾는다. */
+function questionTextResolver(p, smap) {
+  const local = {};
+  const ap = p.answerProfile;
+  if (ap && Array.isArray(ap.answers)) {
+    ap.answers.forEach((a) => {
+      if (a && a.questionText) local[`${ap.surveyId}|${a.questionId}`] = a.questionText;
+    });
+  }
+  return (surveyId, questionId) => local[`${surveyId}|${questionId}`]
+    || (smap[surveyId] && smap[surveyId].q ? smap[surveyId].q[questionId] : null)
+    || null;
+}
+
+/** evidence 렌더는 이 하나로 통일한다 — behaviorModel · traits · goals · painPoints가 모두 evidencedItem이다. */
+function evidenceHtml(evidence, ctx) {
+  if (!evidence || !evidence.length) return `<p class="no-evi">근거가 기록되지 않았습니다.</p>`;
+  return `
+    <details class="evi">
+      <summary>근거 ${evidence.length}건 — 누가 어떤 문항에 무엇이라 답했는지</summary>
+      ${evidence.map((ev) => {
+        const who = ev.respondentLabel || '응답자 미상';
+        const qText = ctx.qText(ev.surveyId, ev.questionId);
+        const sTitle = ctx.smap[ev.surveyId] ? ctx.smap[ev.surveyId].title : ev.surveyId;
+        return `<blockquote class="quote">
+          <span class="who">${esc(who)} · ${esc(ev.questionId)}</span>
+          ${ev.quote ? `“${esc(ev.quote)}”` : `<span class="muted small">(인용 없음 — 출처만 기록됨)</span>`}
+          <span class="src">${esc(sTitle)}${qText ? ` · ${esc(qText)}` : ''}${
+            ev.populationContext ? `<br>전체 맥락(보조): ${esc(ev.populationContext)}` : ''}</span>
+        </blockquote>`;
+      }).join('')}
+    </details>`;
+}
+
+/** evidencedItem 배열 렌더 */
+function itemsHtml(items, ctx, { ordered = false, tone = '' } = {}) {
+  if (!items || !items.length) return '';
+  const tag = ordered ? 'ol' : 'ul';
+  return `<${tag} class="evi-list${tone ? ` ${tone}` : ''}">
+    ${items.map((it) => `<li class="evi-item">
+      <div class="evi-text">${esc(it.text)}</div>
+      ${evidenceHtml(it.evidence, ctx)}
+    </li>`).join('')}
+  </${tag}>`;
+}
+
+function evidencedSection(title, items, ctx) {
+  if (!items || !items.length) return '';
+  return `<section class="card" style="margin-top:14px">
+    <h3>${esc(title)}</h3>
+    ${itemsHtml(items, ctx)}
+  </section>`;
+}
+
 // ---------- 뷰 1: 페르소나 목록 ----------
 function renderList(project, personas) {
   app.innerHTML = `
     <div class="crumb"><a href="../../?p=${esc(pid)}">← ${esc(project.name)}</a></div>
     <div class="section-head" style="margin-top:0">
-      <h2>페르소나 <span class="badge accent">🤖 AI 생성 · 근거 기반</span></h2>
+      <h2>페르소나 <span class="badge accent">🤖 AI 생성 · 개인 응답 기반</span></h2>
     </div>
-    <p class="small muted" style="margin:-6px 0 16px">서베이 응답 클러스터를 대표하는 가상 사용자입니다. 모든 특성은 실제 응답 근거(evidence)와 연결됩니다.</p>
+    <p class="small muted" style="margin:-6px 0 16px">
+      페르소나는 문항별 집계가 아니라 <b>한 응답자가 전체 문항에 어떻게 답했는가</b>에서 나옵니다.
+      집계는 그 사람이 다수인지 소수인지를 알려주는 보조 정보일 뿐입니다.
+    </p>
     ${personas.length ? `
       <div class="grid cols2">
-        ${personas.map((p) => `
+        ${personas.map((p) => {
+          const labels = primaryLabels(p);
+          const note = p.populationNote || p.clusterInfo || '';
+          return `
           <a class="card" href="?p=${esc(pid)}&persona=${esc(p.id)}">
             <h3>${esc(p.name)}</h3>
+            <div class="persona-meta">
+              ${basisBadge(p)}
+              ${labels.map((l) => `<span class="badge">${esc(l)}</span>`).join('')}
+              ${confBadge(p)}
+            </div>
             <p>${esc(p.summary || '')}</p>
-            ${p.clusterInfo ? `<p class="small muted" style="margin-top:8px">${esc(p.clusterInfo)}</p>` : ''}
+            ${note ? `<p class="small muted" style="margin-top:8px">${esc(note)}</p>` : ''}
             <div class="persona-meta">
               ${p.techProfile && p.techProfile.savviness ? `<span class="badge">${esc(SAVVY[p.techProfile.savviness] || p.techProfile.savviness)}</span>` : ''}
               ${p.voice && p.voice.ratingBias ? `<span class="badge accent">${esc(BIAS[p.voice.ratingBias] || p.voice.ratingBias)}</span>` : ''}
+              ${p.behaviorModel && p.behaviorModel.effortTolerance
+                ? `<span class="badge">${esc(EFFORT[p.behaviorModel.effortTolerance] || p.behaviorModel.effortTolerance)}</span>` : ''}
             </div>
-          </a>`).join('')}
+          </a>`;
+        }).join('')}
       </div>`
       : `
       <div class="card">
@@ -107,8 +244,9 @@ function renderList(project, personas) {
           <p class="small muted">페르소나는 다음 파이프라인으로 만들어집니다.</p>
           <ol class="pipeline-steps">
             <li>Survey 모듈에서 서베이 응답을 수집합니다.</li>
-            <li>응답이 쌓이면 <b>persona-builder Agent(M05)</b>가 응답을 클러스터링해 근거가 연결된 페르소나를 생성합니다 — Claude API를 사용하며, 실행 전에 예상 비용을 고지합니다.</li>
-            <li>모든 특성이 실제 응답 근거(evidence)에 연결된 페르소나가 <b>Firestore에 저장</b>되어 이 화면에 나타납니다.</li>
+            <li><b>persona-builder Agent(M05)</b>가 <b>응답자 한 명 한 명의 응답 프로필</b>을 읽어 그 사람을 세우고,
+              패턴이 닮은 사람이 있으면 묶습니다 — Claude API를 사용하며, 실행 전에 예상 비용을 고지합니다.</li>
+            <li>그 사람이 유사 서비스를 만났을 때 하는 행동(behaviorModel)까지 함께 저장되어 이 화면에 나타납니다.</li>
           </ol>
           <p class="small muted">생성 기능은 <b>M05(persona-builder)</b>에서 제공 예정입니다. 이 모듈은 저장된 페르소나를 보는 뷰어입니다.</p>
         </div>
@@ -117,44 +255,45 @@ function renderList(project, personas) {
 
 // ---------- 뷰 2: 페르소나 상세 ----------
 async function renderDetail(project, p) {
-  // evidence 출처 표시용으로 서베이 정의를 불러와 문항 텍스트를 매핑
-  const surveyIds = [...new Set([...(p.sourceSurveyIds || []), ...collectEvidenceSurveyIds(p)])];
+  // 문항 텍스트 매핑용으로 관련 서베이 정의를 불러온다 (answerProfile에 텍스트가 있으면 그쪽이 우선).
+  const surveyIds = [...new Set(collectSurveyIds(p))];
   const fetched = await Promise.all(surveyIds.map((id) => core.getSurvey(pid, id).catch(() => null)));
   const smap = {};
   fetched.filter(Boolean).forEach((s) => {
     smap[s.id] = { title: s.title, q: Object.fromEntries((s.questions || []).map((q) => [q.id, q.text])) };
   });
+  const ctx = { smap, qText: questionTextResolver(p, smap) };
+
+  document.title = `${p.name} — Persona Loop`;
 
   const tp = p.techProfile || {};
   const vo = p.voice || {};
   const demo = p.demographics || {};
+  const conf = p.confidence || {};
   const demoRows = [['나이', demo.age], ['직업', demo.occupation], ['거주지', demo.location], ['가구 구성', demo.household]]
     .filter(([, v]) => v);
 
   app.innerHTML = `
     <div class="crumb"><a href="../../?p=${esc(pid)}">← ${esc(project.name)}</a> / <a href="?p=${esc(pid)}">페르소나</a></div>
-    <div class="section-head" style="margin-top:0">
-      <h2>${esc(p.name)}</h2>
-      <span class="badge accent">🤖 AI 생성 · 근거 기반</span>
-    </div>
-    <p style="margin:-4px 0 10px">${esc(p.summary || '')}</p>
-    <p class="detail-sub">
-      ${p.version ? `버전 v${esc(p.version)}` : ''}${p.generatedBy ? ` · 생성: ${esc(p.generatedBy)}` : ''}${p.createdAt ? ` · ${esc(p.createdAt)}` : ''}
-      ${(p.sourceSurveyIds || []).length ? `<br>근거 서베이: ${p.sourceSurveyIds.map((id) => esc(smap[id] ? `${smap[id].title} (${id})` : id)).join(', ')}` : ''}
-    </p>
 
-    ${demoRows.length || p.clusterInfo ? `
-    <section class="card">
+    ${headerHtml(p, smap)}
+    ${sourceRespondentsHtml(p, smap)}
+    ${behaviorHtml(p, ctx)}
+
+    ${evidencedSection('특성', p.traits, ctx)}
+    ${evidencedSection('목표', p.goals, ctx)}
+    ${evidencedSection('페인 포인트', p.painPoints, ctx)}
+
+    ${answerProfileHtml(p, smap)}
+
+    ${demoRows.length ? `
+    <section class="card" style="margin-top:14px">
       <h3>기본 정보</h3>
-      ${demoRows.length ? `<table style="margin-top:10px">
+      <table style="margin-top:10px">
         ${demoRows.map(([k, v]) => `<tr><th style="width:110px">${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}
-      </table>` : ''}
-      ${p.clusterInfo ? `<p class="kv-caption">대표 클러스터: ${esc(p.clusterInfo)}</p>` : ''}
+      </table>
+      <p class="kv-caption">응답에서 확인된 것만 적습니다. 묻지 않은 항목은 비워 둡니다.</p>
     </section>` : ''}
-
-    ${evidencedSection('특성', p.traits, smap)}
-    ${evidencedSection('목표', p.goals, smap)}
-    ${evidencedSection('페인 포인트', p.painPoints, smap)}
 
     <div class="grid cols2" style="margin-top:14px">
       <section class="card">
@@ -173,45 +312,167 @@ async function renderDetail(project, p) {
           ${vo.verbosity ? `<tr><th>분량</th><td>${esc(VERB[vo.verbosity] || vo.verbosity)}</td></tr>` : ''}
           ${vo.ratingBias ? `<tr><th>별점 성향</th><td><span class="badge accent">${esc(BIAS[vo.ratingBias] || vo.ratingBias)}</span></td></tr>` : ''}
         </table>
-        ${vo.sampleQuote ? `<blockquote class="quote">“${esc(vo.sampleQuote)}”<span class="src">말투 예시</span></blockquote>` : ''}
+        ${vo.sampleQuote ? `<blockquote class="quote">“${esc(vo.sampleQuote)}”<span class="src">말투 예시 — 자유 의견 원문에서</span></blockquote>` : ''}
         <p class="kv-caption">이 값들이 리뷰의 말투·분량·별점 경향을 결정합니다.</p>
       </section>
     </div>
+
+    ${confidenceHtml(conf)}
 
     <div style="margin-top:24px; text-align:center;">
       <a class="btn primary" href="../review/?p=${esc(pid)}&persona=${esc(p.id)}">이 페르소나의 리뷰 보기 →</a>
     </div>`;
 }
 
-function collectEvidenceSurveyIds(p) {
-  const ids = [];
-  ['traits', 'goals', 'painPoints'].forEach((k) =>
-    (p[k] || []).forEach((it) => (it.evidence || []).forEach((ev) => ev.surveyId && ids.push(ev.surveyId))));
-  return ids;
+// (a) 헤더
+function headerHtml(p, smap) {
+  const ids = p.sourceSurveyIds && p.sourceSurveyIds.length
+    ? p.sourceSurveyIds
+    : (p.answerProfile && p.answerProfile.surveyId ? [p.answerProfile.surveyId] : []);
+  return `
+    <div class="section-head" style="margin-top:0">
+      <h2>${esc(p.name)}</h2>
+      <span class="badge accent">🤖 AI 생성 · 개인 응답 기반</span>
+    </div>
+    <p style="margin:-4px 0 10px">${esc(p.summary || '')}</p>
+    <div class="persona-meta" style="margin-bottom:10px">
+      ${basisBadge(p)}${confBadge(p)}
+    </div>
+    <p class="detail-sub">
+      ${p.version ? `버전 v${esc(p.version)}` : ''}${p.generatedBy ? ` · 생성: ${esc(p.generatedBy)}` : ''}${p.createdAt ? ` · ${esc(p.createdAt)}` : ''}
+      ${ids.length ? `<br>근거 서베이: ${ids.map((id) => esc(smap[id] ? `${smap[id].title} (${id})` : id)).join(', ')}` : ''}
+      ${p.revisionNote ? `<br>변경 이력: ${esc(p.revisionNote)}` : ''}
+    </p>`;
 }
 
-function evidencedSection(title, items, smap) {
-  if (!items || !items.length) return '';
+// (b) 근거 응답자
+function sourceRespondentsHtml(p, smap) {
+  const src = (p.sourceRespondents || []).filter((r) => r && r.respondentLabel);
+  const note = p.populationNote || p.clusterInfo || '';
+  if (!src.length && !note) return '';
   return `
     <section class="card" style="margin-top:14px">
-      <h3>${esc(title)}</h3>
-      ${items.map((it) => `
-        <div class="evi-item">
-          <div class="evi-text">${esc(it.text)}</div>
-          ${it.evidence && it.evidence.length ? `
-            <details class="evi">
-              <summary>근거 ${it.evidence.length}건 펼치기</summary>
-              ${it.evidence.map((ev) => {
-                const s = smap[ev.surveyId];
-                const qText = s && s.q ? s.q[ev.questionId] : null;
-                return `<blockquote class="quote">
-                  ${ev.quote ? `“${esc(ev.quote)}”` : '<span class="muted small">(인용 없음 — 출처만 기록됨)</span>'}
-                  <span class="src">출처: ${esc(s ? s.title : ev.surveyId)} · ${esc(ev.questionId)}${qText ? ` — ${esc(qText)}` : ''}</span>
-                </blockquote>`;
-              }).join('')}
-            </details>` : ''}
-        </div>`).join('')}
+      <h3>근거 응답자</h3>
+      <p class="section-caption">이 페르소나는 아래 실제 응답자의 답변에서 나왔습니다. 실명은 수집하지 않으며 익명 라벨만 씁니다.</p>
+      ${src.length ? `<div class="chips">
+        ${src.map((r) => {
+          const isPri = r.role === 'primary';
+          const title = `${smap[r.surveyId] ? smap[r.surveyId].title : r.surveyId}${isPri ? ' · 중심 응답자' : ''}`;
+          return `<span class="chip${isPri ? ' primary' : ''}" title="${esc(title)}">${esc(r.respondentLabel)}${isPri ? ' · 중심' : ''}</span>`;
+        }).join('')}
+      </div>` : ''}
+      ${p.clusterSize ? `<p class="kv-caption">같은 패턴으로 묶인 응답자 ${esc(p.clusterSize)}명</p>` : ''}
+      ${note ? `<p class="kv-caption">전체 맥락(보조): ${esc(note)}</p>` : ''}
     </section>`;
+}
+
+// (c) behaviorModel — 이번 개편의 핵심. 상단 가까이 크게 배치한다.
+function behaviorHtml(p, ctx) {
+  const bm = p.behaviorModel;
+  if (!bm) return '';
+  const block = (title, items, opts) => (items && items.length
+    ? `<div class="bm-block"><h4>${esc(title)}</h4>${itemsHtml(items, ctx, opts)}</div>` : '');
+  const single = (title, item, opts) => (item && item.text
+    ? `<div class="bm-block"><h4>${esc(title)}</h4>${itemsHtml([item], ctx, opts)}</div>` : '');
+
+  return `
+    <section class="card bm-card" style="margin-top:14px">
+      <h3>행동 모델 — 이 사람은 이렇게 씁니다</h3>
+      <p class="section-caption">이 페르소나가 유사 서비스를 만났을 때 하는 행동입니다.
+        demo-reviewer Agent가 데모를 사용할 때 이 규칙을 따릅니다.</p>
+
+      ${block('처음 열었을 때 하는 행동 (순서대로)', bm.firstMoves, { ordered: true })}
+      ${block('계속 쓸지 가르는 판단 기준', bm.decisionDrivers)}
+      ${block('만나는 즉시 이탈하는 것', bm.dealBreakers, { tone: 'warn' })}
+      ${single('“아 이거다” 하는 순간', bm.successMoment)}
+
+      ${bm.comparisonAnchors && bm.comparisonAnchors.length ? `
+      <div class="bm-block">
+        <h4>무의식중에 비교하는 서비스</h4>
+        <div class="chips">${bm.comparisonAnchors.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
+      </div>` : ''}
+
+      ${bm.effortTolerance || bm.helpSeeking ? `
+      <div class="bm-dispo">
+        ${bm.effortTolerance ? `<span><b>버티는 정도</b><span class="badge">${esc(EFFORT[bm.effortTolerance] || bm.effortTolerance)}</span></span>` : ''}
+        ${bm.helpSeeking ? `<span><b>도움 요청</b><span class="badge">${esc(HELP[bm.helpSeeking] || bm.helpSeeking)}</span></span>` : ''}
+      </div>` : ''}
+    </section>`;
+}
+
+// (e) 응답 프로필 원본
+function answerProfileHtml(p, smap) {
+  const ap = p.answerProfile;
+  if (!ap || !Array.isArray(ap.answers) || !ap.answers.length) return '';
+  const sTitle = smap[ap.surveyId] ? smap[ap.surveyId].title : ap.surveyId;
+  const cds = ap.contradictions || [];
+  return `
+    <section class="card" style="margin-top:14px">
+      <h3>응답 프로필 원본 — ${esc(ap.respondentLabel || '중심 응답자')}</h3>
+      <p class="section-caption">${esc(sTitle)}에서 이 사람이 실제로 낸 답변 전체입니다.
+        위의 모든 서술은 여기서 나왔습니다 — 창작이 아님을 여기서 확인하세요.</p>
+
+      ${cds.length ? `
+      <div class="contradict">
+        <h4>⚠️ 서로 어긋나는 답변 ${cds.length}건</h4>
+        <ul>${cds.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
+        <p class="kv-caption">실제 사람은 일관적이지 않습니다. 감추지 않고 그대로 둡니다 — 이 긴장이 페르소나를 진짜처럼 만듭니다.</p>
+      </div>` : ''}
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:34%">문항</th>
+            <th style="width:22%">이 사람의 답</th>
+            <th style="width:20%">남긴 의견</th>
+            <th style="width:24%">해석 (readAs)</th>
+          </tr></thead>
+          <tbody>
+            ${ap.answers.map((a) => {
+              const qt = a.questionText || (smap[ap.surveyId] && smap[ap.surveyId].q ? smap[ap.surveyId].q[a.questionId] : '') || '';
+              return `<tr>
+                <td><span class="badge">${esc(a.questionId)}</span> ${esc(qt)}</td>
+                <td class="ans">${esc(fmtAnswer(a.answer))}</td>
+                <td>${a.comment ? esc(a.comment) : '<span class="muted">—</span>'}</td>
+                <td class="read">${a.readAs ? esc(a.readAs) : '<span class="muted">—</span>'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p class="kv-caption">‘해석’은 이 답을 어떻게 읽었는지에 대한 설명이며, 원문(답·의견)과 분리해 둡니다.</p>
+    </section>`;
+}
+
+// (f) 신뢰도
+function confidenceHtml(conf) {
+  if (!conf || (!conf.level && conf.answeredRatio === undefined && !(conf.gaps || []).length)) return '';
+  const pct = typeof conf.answeredRatio === 'number' ? `${Math.round(conf.answeredRatio * 100)}%` : null;
+  return `
+    <section class="card" style="margin-top:14px">
+      <h3>신뢰도</h3>
+      <table style="margin-top:10px">
+        ${conf.level ? `<tr><th style="width:120px">수준</th><td><span class="${conf.level === 'low' ? 'badge warn' : conf.level === 'high' ? 'badge ok' : 'badge'}">${esc(CONF[conf.level] || conf.level)}</span></td></tr>` : ''}
+        ${pct ? `<tr><th>응답률</th><td>중심 응답자가 전체 문항 중 ${esc(pct)}에 답함</td></tr>` : ''}
+      </table>
+      ${(conf.gaps || []).length ? `
+        <p class="kv-caption" style="margin-bottom:2px">근거가 부족해 추론으로 메운 부분:</p>
+        <ul class="pipeline-steps">${conf.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}
+    </section>`;
+}
+
+/** 문항 텍스트를 매핑해야 하는 서베이 id를 전부 모은다. */
+function collectSurveyIds(p) {
+  const ids = [...(p.sourceSurveyIds || [])];
+  if (p.answerProfile && p.answerProfile.surveyId) ids.push(p.answerProfile.surveyId);
+  (p.sourceRespondents || []).forEach((r) => r && r.surveyId && ids.push(r.surveyId));
+
+  const push = (item) => (item && item.evidence || []).forEach((ev) => ev.surveyId && ids.push(ev.surveyId));
+  ['traits', 'goals', 'painPoints'].forEach((k) => (p[k] || []).forEach(push));
+  const bm = p.behaviorModel || {};
+  ['firstMoves', 'decisionDrivers', 'dealBreakers'].forEach((k) => (bm[k] || []).forEach(push));
+  push(bm.successMoment);
+  return ids.filter(Boolean);
 }
 </script>
 </body>

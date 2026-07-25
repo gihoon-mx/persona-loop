@@ -2,6 +2,26 @@
 
 멀티 세션 작업의 단일 상태 소스. 세션 시작 시 먼저 읽고, 작업 후 갱신해 커밋에 포함할 것.
 
+## 2026-07-25 — v0.5.0: 페르소나를 개인 응답 기반으로 전환
+
+**"페르소나는 문항별로 만드는 게 아니라, 각 응답자 개인이 문항에 어떻게 답했는지를 분석해서 만든다. 그래야 이 사람이 유사 서비스에서 어떻게 행동할지 대변할 수 있다."**
+
+v0.4까지는 "35명 중 71%가 X" 같은 **집계**를 근거로 페르소나를 만들었다. 그건 통계 요약이지 사람이 아니다 — 71%의 X와 64%의 Y를 동시에 고른 응답자가 실제로는 0명일 수 있고, 그렇게 만든 페르소나는 존재하지 않는 사람이라 행동을 예측할 수 없다. 페르소나의 단위를 **응답자 개인**으로 되돌리고, 집계는 "이 사람이 다수인지 소수인지"를 알려주는 보조 정보로 강등했다.
+
+- **스키마 전면 개정** (`persona.schema.json`): `basis`(individual|cluster) · `sourceRespondents`(익명 라벨 + primary/supporting) · `answerProfile`(중심 응답자의 답변 전체 + `contradictions`) · `behaviorModel` · `confidence` · `clusterSize` · `populationNote` · `revisionNote` 신설. **`evidence[]`에 `respondentLabel` 필수** — 근거는 "특정 사람의 특정 답변"이어야 하고, 집계(`populationContext`)는 선택 보조 필드로 내려갔다
+- **`behaviorModel` 신설** — 페르소나의 목적은 묘사가 아니라 대변이다. `firstMoves`·`decisionDrivers`·`dealBreakers`·`successMoment`·`comparisonAnchors`·`effortTolerance`·`helpSeeking`을 근거와 함께 적고, demo-reviewer가 데모를 쓸 때 이 규칙을 그대로 실행한다
+- **`answerProfile` 신설** — 중심 응답자가 실제로 낸 40문항 답변 전체를 페르소나 옆에 나란히 두어 "창작이 아님"을 증명한다. 원문(`answer`·`comment`)과 해석(`readAs`)을 필드로 분리. 모순(`contradictions`)은 감추지 않는다 — 매끈한 페르소나는 가짜다
+- **응답자별 보기 신설** (M03, `apps/survey/`): 결과 화면을 문항별 집계 ↔ 응답자별 프로필로 전환. 응답 문서 1건 = 응답자 1명이라 데이터는 원래 있었고, 화면이 문항별로만 접고 있었을 뿐이다. `respondentLabel`이 없는 응답(CSV·공개 폼)은 "응답 #n"으로 표기(정렬 고정). **전체 프로필 JSON**(응답자 전원)·**응답 프로필 JSON**(1명)이 `answerProfile` 형태로 내려받히며 그대로 persona-builder의 입력이 된다
+- **페르소나 뷰어 확장** (M06): 응답 프로필 뷰·행동 모델 뷰·근거의 응답자 라벨 표시
+- **에이전트 사양 재작성**: `agents/persona-builder/README.md`가 M05의 구현 사양이 됐다 — 입력(응답자별 프로필) / 6단계 방법(프로필 구성 → 패턴 묶기 → 중심 응답자 선정 → 특성 도출 → behaviorModel 도출 → 모순·신뢰도) / 금지 사항 / 저장 전 자기 점검. `agents/demo-reviewer/README.md`는 behaviorModel을 실행 규칙으로 쓰도록 갱신(dealBreaker 조우 시 `gave_up`·`abandoned`로 즉시 종료, effortTolerance별 스텝 예산, decisionDrivers = 리뷰 평가 축)
+- **샘플 재작성**: `data/seed/sample/`의 페르소나를 새 스키마에 맞춰 다시 씀 (응답 프로필·행동 모델 포함)
+- 문서: ARCHITECTURE.md §5 "페르소나 — 개인 응답 기반"으로 재작성, MODULES.md M03·M05·M06 갱신
+
+### 다음 할 일
+- [ ] **M05 persona-builder 구현** — 사양은 `agents/persona-builder/README.md`에 확정돼 있다. 로컬 실행(서비스 계정 키 불필요) + 결과를 웹 화면에서 입력하는 경로부터 만들 것. Claude API 비용은 응답자 수에 비례하므로 실행 전 고지 필수
+- [ ] **사용자**: 결과 화면에서 응답자별 보기 → JSON 내보내기를 한 번 돌려보고, 라벨·무응답 표기가 실제 데이터에서 제대로 나오는지 확인 (연동 회차는 P1·P2…, CSV 임포트는 "응답 #n")
+- [ ] 페르소나 뷰어에 응답 프로필과 페르소나를 좌우로 나란히 놓는 대조 뷰(넓은 화면) 검토
+
 ## 2026-07-25 — v0.4.0: now-here-survey 연동 (M10)
 
 이미 현장에서 운영 중인 설문 서비스 [now-here-survey](https://gihoon-mx.github.io/now-here-survey/)(Supabase)의 응답을 페르소나의 재료로 가져온다. Persona Loop는 설문을 새로 만들지 않는다 — 설문 설계·현장 진행은 원본이, 페르소나 차원 태깅·페르소나 생성·리뷰는 Persona Loop가 맡는다.

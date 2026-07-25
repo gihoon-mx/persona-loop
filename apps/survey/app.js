@@ -5,7 +5,9 @@
 //   ?p=<pid>&view=import         CSV 임포트 위저드 (admin)
 //   ?p=<pid>&view=link           now-here-survey 연동 (admin, 읽기 전용)
 //     &src=<surveyId>&sess=<sessionId>  ↳ 특정 회차로 바로 진입 (재동기화용)
-//   ?p=<pid>&s=<sid>             상세/결과 (admin)
+//   ?p=<pid>&s=<sid>             상세/결과 — 문항별 집계 (admin, 기본)
+//   ?p=<pid>&s=<sid>&by=respondent          상세/결과 — 응답자별 목록 (admin)
+//     &r=<라벨 또는 #n>                     ↳ 응답자 1명의 전체 답변 (페르소나의 입력)
 //   ?p=<pid>&s=<sid>&mode=respond  응답자용 공개 폼 (미니멀 · 유일한 비공개 게이트 예외)
 import * as core from '../../packages/core/core.js';
 import {
@@ -21,6 +23,11 @@ const projectId = qsParam('p');
 const surveyId = qsParam('s');
 const view = qsParam('view');
 const mode = qsParam('mode');
+// 상세 뷰의 보기 전환. null = 문항별 집계(기본), 'respondent' = 응답자별.
+// 쿼리 파라미터로 두어 뒤로가기·링크 공유로 상태가 유지된다.
+const byView = qsParam('by');
+// 응답자별 보기에서 펼쳐 볼 사람 — 익명 라벨('P7') 또는 라벨이 없는 응답의 순번('#3').
+const respondentKey = qsParam('r');
 
 const TYPE_LABELS = { single: '객관식(단일)', multi: '객관식(복수)', likert: '리커트', open: '주관식', number: '숫자' };
 const STATUS_LABELS = { draft: '초안', open: '진행 중', closed: '마감', imported: '임포트됨' };
@@ -553,6 +560,320 @@ function questionResultHtml(q, a, responseCount) {
   ${answers.length > 20 ? `<p class="small muted" style="margin-top:6px">외 ${answers.length - 20}건</p>` : ''}`;
 }
 
+// ---------- 응답자별 보기 ----------
+// 페르소나는 문항별 집계('35명 중 71%')가 아니라 **한 사람이 문항 전체에 어떻게 답했는가**에서 나온다.
+// Firestore 응답 문서 1건 = 응답자 1명이므로, 그 문서를 문항 순서대로 펼쳐 사람 단위로 읽는다.
+// 이 화면이 페르소나 생성의 입력이자, 사람이 눈으로 "창작이 아님"을 확인하는 창이다.
+// 개인정보: respondent(uid)·실명은 어디에도 쓰지 않는다. 익명 라벨만 표시한다.
+
+const MAX_RESPONDENT_CARDS = 200;   // 응답이 많아도 목록이 무너지지 않게
+
+const RESPONDENT_SORTS = [
+  // 의견을 많이 남긴 사람이 페르소나 재료로 가치가 크므로 정렬로 끌어올릴 수 있게 한다.
+  ['ratio', '응답률 높은 순'],
+  ['comments', '의견 많은 순'],
+  ['label', '라벨순'],
+];
+
+function isBlank(v) {
+  if (v === undefined || v === null) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  return String(v).trim() === '';
+}
+
+/** 'P2'가 'P10'보다 앞에 오도록 숫자를 숫자로 비교한다. */
+function natCompare(a, b) {
+  return String(a).localeCompare(String(b), 'ko', { numeric: true, sensitivity: 'base' });
+}
+
+/** submittedAt은 Firestore Timestamp · ISO 문자열 · null이 모두 올 수 있다. */
+function toDateOrNull(v) {
+  if (!v) return null;
+  if (typeof v === 'object' && typeof v.toDate === 'function') {
+    try { return v.toDate(); } catch { return null; }
+  }
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function fmtDateTime(v) {
+  const d = toDateOrNull(v);
+  if (!d) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** 연동 서베이는 항목별 자유 의견을 `<qid>-c` 주관식 문항으로 따로 담는다 (survey-source.js). */
+function commentQidOf(qid) { return `${qid}-c`; }
+
+/**
+ * 응답자 1명의 답변을 문항 순서대로 편다 (answerProfile.answers의 원형).
+ * - `<qid>-c` 의견 문항은 별도 행이 아니라 원 문항의 comment로 접는다.
+ *   단 안내 페이지처럼 원 문항이 없는 의견은 그대로 한 행이 된다 — 그 의견도 사람의 목소리다.
+ * - 무응답 문항도 행으로 남긴다 (answer: null). 무엇을 답하지 않았는지도 정보다.
+ */
+function buildProfileRows(questions, answers) {
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  const rows = [];
+  for (const q of questions) {
+    if (q.id.endsWith('-c') && byId.has(q.id.slice(0, -2))) continue;  // 원 문항에 접힌다
+    const cq = byId.get(commentQidOf(q.id));
+    const rawA = answers ? answers[q.id] : undefined;
+    const rawC = cq && answers ? answers[cq.id] : undefined;
+    rows.push({
+      question: q,
+      answer: isBlank(rawA) ? null : rawA,
+      comment: isBlank(rawC) ? '' : String(rawC).trim(),
+    });
+  }
+  return rows;
+}
+
+/** 응답 문서 1건 → 화면·내보내기에 쓰는 응답자 프로필. */
+function summarizeRespondent(questions, doc) {
+  const answers = doc.answers || {};
+  const rows = buildProfileRows(questions, answers);
+  const answered = rows.filter((r) => r.answer !== null).length;
+  // 자유 의견 = 주관식 문항에 실제로 남긴 글. 연동 서베이의 `-c` 의견도 주관식이라 여기 포함된다.
+  const texts = questions
+    .filter((q) => q.type === 'open')
+    .map((q) => answers[q.id])
+    .filter((v) => !isBlank(v))
+    .map((v) => String(v).trim());
+  const preview = texts.reduce((longest, t) => (t.length > longest.length ? t : longest), '');
+  // 정의에 없는 문항 키 — 문항이 나중에 바뀐 경우를 조용히 숨기지 않는다.
+  const known = new Set(questions.map((q) => q.id));
+  const orphanKeys = Object.keys(answers).filter((k) => !known.has(k) && !isBlank(answers[k]));
+  return {
+    rows, answered, total: rows.length,
+    ratio: rows.length ? answered / rows.length : 0,
+    commentCount: texts.length, preview, orphanKeys,
+  };
+}
+
+/** 응답 배열 → 결정적 순서의 응답자 목록. 순번('#3')이 새로고침마다 흔들리지 않게 정렬을 고정한다. */
+function buildRespondents(questions, responses) {
+  const ordered = [...responses].sort((a, b) => {
+    const la = a.respondentLabel || '', lb = b.respondentLabel || '';
+    if (la && lb) return natCompare(la, lb);
+    if (la !== lb) return la ? -1 : 1;                       // 라벨이 있는 응답을 앞에
+    const ta = toDateOrNull(a.submittedAt), tb = toDateOrNull(b.submittedAt);
+    if (ta && tb && ta.getTime() !== tb.getTime()) return ta - tb;
+    if (!!ta !== !!tb) return ta ? -1 : 1;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  return ordered.map((doc, i) => ({
+    doc,
+    index: i + 1,
+    label: doc.respondentLabel || `응답 #${i + 1}`,
+    key: doc.respondentLabel || `#${i + 1}`,   // URL의 &r= 값
+    ...summarizeRespondent(questions, doc),
+  }));
+}
+
+function findRespondent(list, key) {
+  if (!key) return null;
+  const raw = String(key);
+  const n = Number(raw.replace(/^#/, ''));
+  return list.find((r) => r.key === raw)
+    || (Number.isFinite(n) ? list.find((r) => r.index === n) : null)
+    || list.find((r) => r.doc.id === raw)
+    || null;
+}
+
+/** persona.schema.json의 answerProfile 형태 — M05 이전에는 이 파일이 에이전트의 입력이 된다. */
+function buildAnswerProfile(sid, r) {
+  return {
+    surveyId: sid,
+    respondentLabel: r.label,
+    answers: r.rows.map((row) => {
+      const out = {
+        questionId: row.question.id,
+        questionText: row.question.text || '',
+        answer: row.answer,            // 무응답은 null로 남긴다 (빠뜨리지 않는다)
+      };
+      if (row.comment) out.comment = row.comment;
+      return out;
+    }),
+  };
+}
+
+function profileFileSlug(r) {
+  return slugifyId(r.label) || `r${r.index}`;
+}
+
+function answerBlockHtml(q, value) {
+  if (value === null || value === undefined) return `<p class="ans none">무응답</p>`;
+  if (Array.isArray(value)) {
+    return `<p class="ans">${value.map((v) => `<span class="pill">${esc(v)}</span>`).join('')}</p>`;
+  }
+  if (q.type === 'likert') {
+    return `<p class="ans"><b>${esc(value)}</b> <span class="small muted">/ ${esc(q.scale || 5)}</span></p>`;
+  }
+  if (q.type === 'open') {
+    return `<blockquote class="free-text">${esc(value)}</blockquote>`;
+  }
+  return `<p class="ans">${esc(value)}</p>`;
+}
+
+function respondentHref(pid, sid, key) {
+  return `?p=${encodeURIComponent(pid)}&s=${encodeURIComponent(sid)}`
+    + `&by=respondent&r=${encodeURIComponent(key)}`;
+}
+
+function pctText(r) { return `${Math.round(r.ratio * 100)}%`; }
+
+/** 목록: 응답자 = 문서 1건. 카드에 그 사람의 목소리(가장 긴 자유 의견)를 바로 노출한다. */
+function respondentListHtml(pid, sid, respondents, sortKey) {
+  if (!respondents.length) {
+    return `<p class="empty">아직 응답이 없습니다.<br>
+      <span class="small">응답이 쌓이면 여기에서 한 사람씩 전체 답변을 볼 수 있습니다.</span></p>`;
+  }
+  const cmp = {
+    ratio: (a, b) => b.ratio - a.ratio || b.commentCount - a.commentCount || natCompare(a.label, b.label),
+    comments: (a, b) => b.commentCount - a.commentCount || b.ratio - a.ratio || natCompare(a.label, b.label),
+    label: (a, b) => natCompare(a.label, b.label),
+  }[sortKey] || null;
+  const sorted = cmp ? [...respondents].sort(cmp) : respondents;
+  const shown = sorted.slice(0, MAX_RESPONDENT_CARDS);
+  const withComments = respondents.filter((r) => r.commentCount > 0).length;
+
+  return `
+    <div class="card">
+      <div class="link-bar">
+        <span class="small">응답자 <b>${respondents.length}</b>명 · 자유 의견을 남긴 사람 <b>${withComments}</b>명</span>
+        <span style="flex:1"></span>
+        <span class="small muted">정렬</span>
+        <select data-resp-sort style="width:auto">
+          ${RESPONDENT_SORTS.map(([v, l]) =>
+            `<option value="${v}"${v === sortKey ? ' selected' : ''}>${esc(l)}</option>`).join('')}
+        </select>
+        <button class="btn" data-export-all
+          title="모든 응답자의 응답 프로필을 answerProfile 형태 JSON 한 파일로 내려받습니다">전체 프로필 JSON</button>
+      </div>
+      <p class="small muted" style="margin-top:10px">
+        카드를 누르면 그 사람이 문항 전체에 어떻게 답했는지 순서대로 볼 수 있습니다.
+        페르소나는 이 <b>개인의 응답 프로필</b>에서 나오며, 문항별 집계는 그 사람이 다수인지 소수인지를 알려주는 보조 정보입니다.
+        내려받는 JSON은 로컬 분석용이며 repo에 커밋하지 마세요.
+      </p>
+    </div>
+    ${sorted.length > shown.length ? `<p class="small muted" style="margin:12px 0 -2px">
+      응답자 ${sorted.length}명 중 ${shown.length}명만 표시합니다. 정렬을 바꿔 다른 응답자를 확인하거나,
+      <b>전체 프로필 JSON</b>으로 ${sorted.length}명 전부를 내려받으세요.</p>` : ''}
+    <div class="grid cols2" style="margin-top:14px">
+      ${shown.map((r) => `
+        <a class="card resp-card" href="${esc(respondentHref(pid, sid, r.key))}">
+          <h3>${esc(r.label)}
+            <span class="badge">응답률 ${esc(pctText(r))}</span>
+            ${r.commentCount ? `<span class="badge accent">의견 ${r.commentCount}</span>` : ''}
+          </h3>
+          <p class="small muted">${r.answered}/${r.total} 문항${
+            fmtDateTime(r.doc.submittedAt) ? ` · ${esc(fmtDateTime(r.doc.submittedAt))}` : ''}</p>
+          <div class="bar-track" style="margin-top:8px"><div class="bar-fill" style="width:${Math.round(r.ratio * 100)}%"></div></div>
+          ${r.preview
+            ? `<p class="resp-preview">“${esc(r.preview)}”</p>`
+            : `<p class="small muted" style="margin-top:8px">자유 의견 없음</p>`}
+        </a>`).join('')}
+    </div>`;
+}
+
+/** 상세: 그 사람의 문항 전체 답변을 순서대로. 무응답도 빠뜨리지 않는다. */
+function respondentDetailHtml(pid, sid, r, prev, next) {
+  const listHref = `?p=${encodeURIComponent(pid)}&s=${encodeURIComponent(sid)}&by=respondent`;
+  return `
+    <div class="section-head" style="margin-top:18px">
+      <h2>${esc(r.label)} <span class="badge">응답자 프로필</span></h2>
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        ${prev ? `<a class="btn" href="${esc(respondentHref(pid, sid, prev.key))}">← ${esc(prev.label)}</a>` : ''}
+        ${next ? `<a class="btn" href="${esc(respondentHref(pid, sid, next.key))}">${esc(next.label)} →</a>` : ''}
+      </span>
+    </div>
+    <div class="card">
+      <div class="num-summary">
+        <span>응답률 <b>${esc(pctText(r))}</b> <span class="small muted">(${r.answered}/${r.total})</span></span>
+        <span>자유 의견 <b>${r.commentCount}</b>건</span>
+        ${fmtDateTime(r.doc.submittedAt) ? `<span class="muted">제출 ${esc(fmtDateTime(r.doc.submittedAt))}</span>` : ''}
+      </div>
+      <div class="bar-track" style="margin-top:10px"><div class="bar-fill" style="width:${Math.round(r.ratio * 100)}%"></div></div>
+      <div class="link-bar" style="margin-top:14px">
+        <a class="btn" href="${esc(listHref)}">← 응답자 목록</a>
+        <span style="flex:1"></span>
+        <button class="btn primary" data-export-one
+          title="이 응답자의 답변을 answerProfile 형태 JSON으로 내려받습니다">응답 프로필 JSON</button>
+      </div>
+      <p class="small muted" style="margin-top:10px">
+        아래는 이 사람이 실제로 낸 답변 전체입니다. 익명 라벨만 쓰며 이름·계정은 저장하지도, 표시하지도 않습니다.
+      </p>
+    </div>
+    ${r.rows.map((row, i) => `
+      <div class="qcard" style="margin-top:12px">
+        <div class="qtext">${i + 1}. ${esc(row.question.text || '')}
+          <span class="badge">${esc(TYPE_LABELS[row.question.type] || row.question.type)}</span>
+          ${row.question.personaDimension
+            ? `<span class="badge accent">${esc(row.question.personaDimension)}</span>` : ''}
+        </div>
+        ${answerBlockHtml(row.question, row.answer)}
+        ${row.comment ? `<blockquote class="free-text">${esc(row.comment)}<span class="who">자유 의견</span></blockquote>` : ''}
+      </div>`).join('')}
+    ${r.orphanKeys.length ? `<p class="small muted" style="margin-top:12px">
+      현재 문항 정의에 없는 응답 키 ${r.orphanKeys.length}개(${esc(r.orphanKeys.slice(0, 5).join(', '))}${
+        r.orphanKeys.length > 5 ? ' 외' : ''})가 이 응답에 남아 있습니다 — 문항이 바뀐 뒤 다시 동기화하지 않은 경우입니다.</p>` : ''}
+    <div class="banner info" style="margin-top:20px">
+      <b>이 응답자로 페르소나 만들기</b> —
+      페르소나 생성(<b>M05 persona-builder</b>)은 아직 구현되지 않았습니다.
+      지금은 위의 <b>응답 프로필 JSON</b>을 내려받아 로컬에서 에이전트에 입력하세요
+      (persona.schema.json의 <code>answerProfile</code> 형태입니다).
+      생성된 페르소나는 <a href="../persona/?p=${esc(encodeURIComponent(pid))}">페르소나 화면</a>에서 볼 수 있습니다.
+    </div>`;
+}
+
+/** 응답자별 보기 렌더 + 이벤트 바인딩. headHtml은 상세 뷰와 공유하는 머리말. */
+function renderRespondentView({ pid, sid, survey, respondents, loadErr, headHtml }) {
+  const picked = findRespondent(respondents, respondentKey);
+  const sortKey = renderRespondentView.sortKey || 'ratio';
+
+  if (respondentKey && !picked) {
+    app.innerHTML = `${headHtml}
+      <p class="empty">응답자 '${esc(respondentKey)}'를 찾을 수 없습니다.<br>
+        <a href="?p=${esc(pid)}&s=${esc(sid)}&by=respondent">← 응답자 목록</a></p>`;
+    core.renderModeBanner(app);
+    return;
+  }
+
+  let prev = null, next = null;
+  if (picked) {
+    prev = respondents[picked.index - 2] || null;
+    next = respondents[picked.index] || null;
+  }
+
+  app.innerHTML = `${headHtml}
+    ${loadErr ? `<div class="banner">응답을 불러오지 못했습니다: ${esc(loadErr)}</div>` : ''}
+    ${picked
+      ? respondentDetailHtml(pid, sid, picked, prev, next)
+      : respondentListHtml(pid, sid, respondents, sortKey)}`;
+  core.renderModeBanner(app);
+
+  app.querySelector('[data-resp-sort]')?.addEventListener('change', (ev) => {
+    renderRespondentView.sortKey = ev.target.value;   // 정렬은 화면 상태 — URL은 건드리지 않는다
+    renderRespondentView({ pid, sid, survey, respondents, loadErr, headHtml });
+  });
+
+  app.querySelector('[data-export-one]')?.addEventListener('click', () => {
+    downloadJson(buildAnswerProfile(sid, picked), `${sid}-${profileFileSlug(picked)}-profile.json`);
+  });
+
+  app.querySelector('[data-export-all]')?.addEventListener('click', () => {
+    downloadJson({
+      surveyId: sid,
+      surveyTitle: survey.title || '',
+      exportedAt: new Date().toISOString(),
+      questionCount: (survey.questions || []).length,
+      respondentCount: respondents.length,
+      profiles: respondents.map((r) => buildAnswerProfile(sid, r)),
+    }, `${sid}-profiles.json`);
+  });
+}
+
 // ---------- 뷰 3: 상세/결과 ----------
 async function renderDetail(pid, sid) {
   const survey = await core.getSurvey(pid, sid);
@@ -598,12 +919,16 @@ async function renderDetail(pid, sid) {
       </div>` : `<p class="empty">문항이 없습니다.</p>`}`;
 
   const draw = async () => {
+    if (byView === 'respondent') app.innerHTML = `<p class="empty">응답을 불러오는 중…</p>`;
+
+    // 응답 원본은 두 보기가 함께 쓴다 — 문항별은 집계로, 응답자별은 사람 단위로 읽는다.
+    let responses = [], loadErr = '';
+    try { responses = await core.listResponses(pid, sid); }
+    catch (e) { loadErr = e.message; }
+
     // 데이터 소스: (a) Firestore 원본 응답 실시간 집계 → (b) 서베이 문서에 저장된 aggregates → (c) 없음
     let agg = null, aggSource = null;
-    try {
-      const responses = await core.listResponses(pid, sid);
-      if (responses.length) { agg = computeAggregates(survey, responses); aggSource = 'live'; }
-    } catch { /* 읽기 실패 — 아래 fallback */ }
+    if (responses.length) { agg = computeAggregates(survey, responses); aggSource = 'live'; }
     if (!agg && survey.aggregates) { agg = survey.aggregates; aggSource = 'stored'; }
 
     const questions = survey.questions || [];
@@ -625,7 +950,10 @@ async function renderDetail(pid, sid) {
         + (ext.syncedAt ? ` · 마지막 동기화 ${esc(fmtDate(ext.syncedAt))}` : '')
       : (survey.source ? ` · 출처: ${esc(survey.source)}` : '');
 
-    app.innerHTML = `
+    // 보기 전환 — 상태를 쿼리 파라미터에 두어 뒤로가기로 되돌아갈 수 있게 한다.
+    const byHref = `?p=${encodeURIComponent(pid)}&s=${encodeURIComponent(sid)}`;
+    const onRespondent = byView === 'respondent';
+    const headHtml = `
       ${crumbHtml(pid, ` · <a href="?p=${esc(pid)}">서베이 목록</a>`)}
       <div class="section-head" style="margin-top:0">
         <h2>${esc(survey.title)} ${statusBadge(survey.status)}</h2>
@@ -634,6 +962,23 @@ async function renderDetail(pid, sid) {
       <p class="small muted">문항 ${questions.length}개 · 응답 ${agg?.responseCount ?? survey.responseCount ?? 0}건
         ${sourceMeta}
         ${survey.createdAt ? ` · ${esc(survey.createdAt)}` : ''}</p>
+      <nav class="view-chips" aria-label="결과 보기 전환">
+        <a href="${esc(byHref)}" class="${onRespondent ? '' : 'on'}"
+          ${onRespondent ? '' : 'aria-current="page"'}>문항별</a>
+        <a href="${esc(`${byHref}&by=respondent`)}" class="${onRespondent ? 'on' : ''}"
+          ${onRespondent ? 'aria-current="page"' : ''}>응답자별</a>
+      </nav>`;
+
+    if (onRespondent) {
+      renderRespondentView({
+        pid, sid, survey, loadErr, headHtml,
+        respondents: buildRespondents(questions, responses),
+      });
+      return;
+    }
+
+    app.innerHTML = `
+      ${headHtml}
       <div class="card" style="margin-top:14px">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <span class="small muted">상태</span>

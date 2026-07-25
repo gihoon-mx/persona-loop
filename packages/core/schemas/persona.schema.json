@@ -2,45 +2,151 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gihoon-mx.github.io/persona-loop/packages/core/schemas/persona.schema.json",
   "title": "Persona",
-  "description": "서베이 응답 기반 페르소나. 모든 특성은 evidence로 실제 응답에 연결되어야 한다.",
+  "description": "실제 응답자 개인(또는 응답 패턴이 닮은 소수 집단)의 답변을 읽어 만든 페르소나. Firestore `projects/{pid}/personas/{id}`.\n\n핵심 원칙: 페르소나는 문항별 집계('35명 중 71%')가 아니라 **한 사람이 문항 전체에 어떻게 답했는가**에서 나온다. 집계는 그 사람이 다수인지 소수인지를 알려줄 뿐이고, 페르소나의 실체는 개인의 응답 프로필이다. 그래야 이 페르소나가 유사 서비스를 만났을 때 어떻게 행동할지 대변할 수 있다.",
   "type": "object",
-  "required": ["id", "projectId", "name", "summary", "sourceSurveyIds", "traits", "voice"],
+  "required": ["id", "projectId", "name", "summary", "basis", "sourceRespondents", "answerProfile", "traits", "behaviorModel", "voice"],
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "projectId": { "type": "string" },
     "name": { "type": "string", "description": "가명 (예: 지연, 34, 워킹맘)" },
-    "summary": { "type": "string", "description": "한 문단 소개" },
+    "summary": { "type": "string", "description": "이 사람이 어떤 사람인지 한 문단. 응답 프로필에서 읽어낸 것만 쓴다." },
+
+    "basis": {
+      "type": "string",
+      "enum": ["individual", "cluster"],
+      "description": "individual = 응답자 1명을 그대로 페르소나로 세운 것. cluster = 응답 패턴이 닮은 여러 명을 하나로 묶은 것. 어느 쪽이든 근거는 개인의 실제 답변이다."
+    },
     "sourceSurveyIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-    "clusterInfo": { "type": "string", "description": "어떤 응답자 그룹(클러스터)을 대표하는지, 대략 몇 명 규모인지" },
+    "sourceRespondents": {
+      "type": "array",
+      "minItems": 1,
+      "description": "이 페르소나의 근거가 된 실제 응답자들. 익명 라벨(P1, P2…)만 쓴다 — 실명은 수집하지 않는다.",
+      "items": {
+        "type": "object",
+        "required": ["surveyId", "respondentLabel"],
+        "properties": {
+          "surveyId": { "type": "string" },
+          "respondentLabel": { "type": "string", "description": "예: P7" },
+          "role": {
+            "type": "string",
+            "enum": ["primary", "supporting"],
+            "description": "primary = 이 페르소나의 중심이 되는 사람(cluster여도 한 명을 중심에 둔다). supporting = 같은 패턴으로 묶인 사람."
+          }
+        }
+      }
+    },
+    "clusterSize": { "type": "integer", "minimum": 1, "description": "같은 패턴으로 묶인 응답자 수" },
+    "populationNote": { "type": "string", "description": "전체에서 이 패턴이 차지하는 비중 (예: '35명 중 6명'). 대표성 판단용이며 페르소나의 근거는 아니다." },
+
+    "answerProfile": {
+      "type": "object",
+      "required": ["surveyId", "respondentLabel", "answers"],
+      "description": "중심 응답자가 실제로 낸 답변 전체. 페르소나의 원본이며, 뷰어에서 페르소나 옆에 나란히 보여 '창작이 아님'을 증명한다.",
+      "properties": {
+        "surveyId": { "type": "string" },
+        "respondentLabel": { "type": "string" },
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["questionId", "questionText", "answer"],
+            "properties": {
+              "questionId": { "type": "string" },
+              "questionText": { "type": "string" },
+              "answer": { "description": "실제 응답값 (문자열 또는 복수 선택 배열)" },
+              "comment": { "type": "string", "description": "그 문항에 남긴 자유 의견 (있으면)" },
+              "readAs": { "type": "string", "description": "이 답을 어떻게 해석했는지 한 줄. 해석과 원문을 분리해 둔다." }
+            }
+          }
+        },
+        "contradictions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "서로 어긋나는 답변이 있으면 감추지 말고 적는다. 실제 사람은 일관적이지 않으며, 이 긴장이 페르소나를 진짜처럼 만든다."
+        }
+      }
+    },
+
     "demographics": {
       "type": "object",
       "properties": {
         "age": { "type": "string" }, "occupation": { "type": "string" },
         "location": { "type": "string" }, "household": { "type": "string" }
-      }
+      },
+      "description": "응답에서 확인된 것만. 추측으로 채우지 않는다 — 모르면 비워 둔다."
     },
+
     "traits": { "type": "array", "items": { "$ref": "#/$defs/evidencedItem" } },
     "goals": { "type": "array", "items": { "$ref": "#/$defs/evidencedItem" } },
     "painPoints": { "type": "array", "items": { "$ref": "#/$defs/evidencedItem" } },
+
+    "behaviorModel": {
+      "type": "object",
+      "required": ["firstMoves", "decisionDrivers", "dealBreakers"],
+      "description": "**이 페르소나가 유사 서비스를 만났을 때 어떻게 행동하는가.** 페르소나 Agent(demo-reviewer)가 데모를 사용할 때 그대로 따르는 행동 규칙이며, 각 항목은 응답 근거에 연결되어야 한다.",
+      "properties": {
+        "firstMoves": {
+          "type": "array", "minItems": 1,
+          "items": { "$ref": "#/$defs/evidencedItem" },
+          "description": "서비스를 처음 열었을 때 실제로 하는 행동 (순서대로)"
+        },
+        "decisionDrivers": {
+          "type": "array", "minItems": 1,
+          "items": { "$ref": "#/$defs/evidencedItem" },
+          "description": "계속 쓸지 말지를 가르는 판단 기준"
+        },
+        "dealBreakers": {
+          "type": "array", "minItems": 1,
+          "items": { "$ref": "#/$defs/evidencedItem" },
+          "description": "만나는 즉시 이탈하게 만드는 것"
+        },
+        "successMoment": { "$ref": "#/$defs/evidencedItem", "description": "'아 이거다' 하고 납득하는 순간" },
+        "comparisonAnchors": {
+          "type": "array", "items": { "type": "string" },
+          "description": "이 사람이 무의식중에 비교 기준으로 삼는 기존 서비스"
+        },
+        "effortTolerance": {
+          "type": "string", "enum": ["low", "mid", "high"],
+          "description": "원하는 것을 못 찾을 때 얼마나 버티는가. low면 몇 번 헤매고 바로 닫는다."
+        },
+        "helpSeeking": {
+          "type": "string", "enum": ["never", "rarely", "often"],
+          "description": "막혔을 때 도움말·문의를 찾는 성향"
+        }
+      }
+    },
+
     "techProfile": {
       "type": "object",
       "properties": {
         "savviness": { "type": "string", "enum": ["low", "mid", "high"] },
-        "device": { "type": "string", "description": "주 사용 기기 — 데모 세션의 viewport 결정" },
+        "device": { "type": "string", "description": "주 사용 기기 — 데모 세션의 viewport를 결정한다" },
         "network": { "type": "string", "enum": ["fast", "normal", "slow"] }
       }
     },
     "voice": {
       "type": "object",
-      "description": "리뷰 리얼리즘의 핵심 — 이 페르소나가 글을 쓰는 방식",
+      "description": "리뷰 리얼리즘의 핵심 — 이 사람이 글을 쓰는 방식. 자유 의견 원문의 말투에서 뽑는다.",
       "properties": {
         "tone": { "type": "string", "description": "예: 직설적, 조심스러움, 이모지 많음" },
         "verbosity": { "type": "string", "enum": ["terse", "normal", "long"] },
         "ratingBias": { "type": "string", "enum": ["generous", "neutral", "harsh"] },
-        "sampleQuote": { "type": "string" }
+        "sampleQuote": { "type": "string", "description": "가능하면 실제 자유 의견에서 그대로 가져온다" }
       }
     },
+
+    "confidence": {
+      "type": "object",
+      "description": "이 페르소나를 얼마나 믿을 수 있는지. 응답 수가 적거나 무응답이 많으면 낮아진다.",
+      "properties": {
+        "level": { "type": "string", "enum": ["low", "mid", "high"] },
+        "answeredRatio": { "type": "number", "minimum": 0, "maximum": 1, "description": "중심 응답자가 전체 문항 중 답한 비율" },
+        "gaps": { "type": "array", "items": { "type": "string" }, "description": "근거가 부족해 추론으로 메운 부분" }
+      }
+    },
+
     "version": { "type": "integer", "minimum": 1 },
+    "revisionNote": { "type": "string", "description": "이번 판에서 무엇이 왜 바뀌었는지 (repo가 아니라 문서에 남기는 변경 이력)" },
     "generatedBy": { "type": "string", "description": "모델 ID" },
     "createdAt": { "type": "string", "format": "date" }
   },
@@ -53,13 +159,16 @@
         "evidence": {
           "type": "array",
           "minItems": 1,
+          "description": "근거는 **특정 응답자의 특정 답변**이어야 한다. 집계 수치만으로는 개인을 설명하지 못하므로 respondentLabel이 필수다.",
           "items": {
             "type": "object",
-            "required": ["surveyId", "questionId"],
+            "required": ["surveyId", "questionId", "respondentLabel"],
             "properties": {
               "surveyId": { "type": "string" },
               "questionId": { "type": "string" },
-              "quote": { "type": "string", "description": "익명화된 응답 인용 또는 집계 수치 (예: '해당 클러스터 71%가 …')" }
+              "respondentLabel": { "type": "string", "description": "예: P7 — 누구의 답인지" },
+              "quote": { "type": "string", "description": "그 사람이 실제로 고른 값 또는 남긴 자유 의견 원문" },
+              "populationContext": { "type": "string", "description": "선택. 이 답이 전체에서 흔한지 드문지 (예: '35명 중 6명만 이렇게 답함'). 보조 정보일 뿐 근거의 본체가 아니다." }
             }
           }
         }

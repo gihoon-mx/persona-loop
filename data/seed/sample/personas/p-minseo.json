@@ -2,98 +2,361 @@
   "id": "p-minseo",
   "projectId": "sample",
   "name": "민서, 32, 프로덕트 디자이너",
-  "summary": "지도 앱을 하루에도 몇 번씩 여는 헤비유저. 새 서비스는 일단 구석구석 눌러보지만, 정보가 어수선하면 미련 없이 지운다. 리뷰는 이유를 조목조목 적고 별점은 짜게 주는 편.",
+  "summary": "P7 한 사람의 응답 프로필을 그대로 세운 페르소나. 낯선 동네에서 지도를 여는 일이 매우 잦고(q2 5점), 길찾기는 아예 고르지 않은 채 주변 검색·저장/북마크·동네 경계 확인을 쓴다(q3). 동시에 '정보가 복잡해 원하는 것만 보기 어렵다'에 최고점을 줬다(q4 5점). 즉 지도를 적게 쓰고 싶은 사람이 아니라, 많이 쓰면서 '내가 고른 것만 남기고 싶은' 사람이다.",
+  "basis": "individual",
   "sourceSurveyIds": ["sv-sample"],
-  "clusterInfo": "35명 중 약 14명 — '30대 · 주변 탐색 잦음 · 정보 과부하 불만' 클러스터 대표",
-  "demographics": {
-    "age": "32세 (30대)",
-    "occupation": "IT 스타트업 프로덕트 디자이너",
-    "location": "서울 마포구 (1년 전 이사)",
-    "household": "1인 가구"
+  "sourceRespondents": [
+    { "surveyId": "sv-sample", "respondentLabel": "P7", "role": "primary" }
+  ],
+  "populationNote": "35명 중 q4에 5점을 준 사람은 5명, 그중 '저장/북마크'와 '동네 경계 확인'을 함께 고른 사람은 P7을 포함해 3명. 다수 패턴이 아니라 뚜렷한 소수다.",
+
+  "answerProfile": {
+    "surveyId": "sv-sample",
+    "respondentLabel": "P7",
+    "answers": [
+      {
+        "questionId": "q1",
+        "questionText": "연령대를 알려주세요.",
+        "answer": "30대",
+        "readAs": "가장 많은 연령대(35명 중 15명)에 속한다. 연령 자체가 이 사람을 설명하지는 않는다."
+      },
+      {
+        "questionId": "q2",
+        "questionText": "낯선 동네에서 내 위치 주변 정보를 확인하는 일이 잦다.",
+        "answer": 5,
+        "readAs": "척도 최고점. 낯선 곳에서 지도를 여는 것이 예외가 아니라 기본 행동이다."
+      },
+      {
+        "questionId": "q3",
+        "questionText": "지도 앱에서 주로 하는 일을 모두 골라주세요.",
+        "answer": ["주변 장소 검색", "동네 경계 확인", "저장/북마크"],
+        "comment": "저장은 계속 해두는데 목록이 길어져서 결국 다시 안 보게 돼요.",
+        "readAs": "4개 항목 중 3개를 고르면서 '길찾기'만 뺐다. 목적지가 정해진 이동이 아니라 '지금 여기'를 파악하려고 지도를 쓴다."
+      },
+      {
+        "questionId": "q4",
+        "questionText": "지도 앱의 정보가 복잡해서 원하는 것만 보기 어렵다.",
+        "answer": 5,
+        "readAs": "척도 최고점. 불만의 대상은 '기능이 많은 것'이 아니라 '내가 고르지 않은 것까지 화면에 남는 것'이다."
+      },
+      {
+        "questionId": "q5",
+        "questionText": "지도 앱을 쓰다가 가장 불편했던 순간을 알려주세요.",
+        "answer": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요",
+        "readAs": "q4의 5점이 어떤 장면인지 본인 말로 확인해 준다. '못 찾겠다'가 아니라 '내 것이 묻힌다'는 표현이다."
+      }
+    ],
+    "contradictions": [
+      "정보가 너무 많아 원하는 걸 못 찾겠다고 최고점을 주면서(q4 5점, q5 자유 의견), 정작 지도 위에 표시를 더 쌓는 '저장/북마크'와 '동네 경계 확인'을 둘 다 골랐다(q3). 정보량을 줄이고 싶은 게 아니라 '내가 고른 정보만 남기고 싶은' 쪽이다 — 데모에서 필터·저장 UI를 만나면 불평하면서도 계속 누를 것이다.",
+      "저장/북마크를 주 사용 기능으로 꼽아 놓고, 같은 문항 의견에서는 '결국 다시 안 보게 된다'고 적었다(q3). 저장은 습관이지 목적이 아니며, 저장 후 다시 꺼내 보는 경로가 실제 미충족 지점이다."
+    ]
   },
+
+  "demographics": {
+    "age": "30대 (q1 응답)"
+  },
+
   "traits": [
     {
-      "text": "낯선 동네에 가면 습관적으로 지도를 열어 주변부터 훑는다.",
+      "text": "낯선 곳에 서면 목적지를 정하기 전에 먼저 지도를 열어 '지금 여기'를 파악한다.",
       "evidence": [
         {
           "surveyId": "sv-sample",
           "questionId": "q2",
-          "quote": "'낯선 동네에서 주변 정보를 자주 확인한다' 4점 이상 20/35명 — 이 클러스터를 가르는 핵심 축 (클러스터 평균 4.1, 전체 평균 3.5)"
+          "respondentLabel": "P7",
+          "quote": "5 — 매우 그렇다",
+          "populationContext": "35명 중 5점 응답은 7명 (전체 평균 3.5점)"
+        },
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q3",
+          "respondentLabel": "P7",
+          "quote": "주변 장소 검색, 동네 경계 확인, 저장/북마크 — '길찾기'는 고르지 않음"
         }
       ]
     },
     {
-      "text": "길찾기보다 '탐색'이 목적 — 주변 장소 검색과 저장/북마크를 적극적으로 쓴다.",
+      "text": "지도를 '탐색 도구'로 쓴다. 길찾기 기능은 이 사람의 사용 목록에 아예 없다.",
       "evidence": [
         {
           "surveyId": "sv-sample",
           "questionId": "q3",
-          "quote": "주변 장소 검색 24/35명, 저장/북마크 14/35명 — 두 기능을 함께 쓰는 응답자 대부분이 이 클러스터에 속함"
+          "respondentLabel": "P7",
+          "quote": "주변 장소 검색, 동네 경계 확인, 저장/북마크",
+          "populationContext": "35명 중 31명이 '길찾기'를 골랐다. P7은 그 31명에 들어가지 않는 소수다."
+        }
+      ]
+    },
+    {
+      "text": "본 것을 일단 저장해 두지만, 저장한 것을 다시 꺼내 보는 데는 실패하고 있다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q3",
+          "respondentLabel": "P7",
+          "quote": "저장은 계속 해두는데 목록이 길어져서 결국 다시 안 보게 돼요."
         }
       ]
     }
   ],
+
   "goals": [
     {
-      "text": "지금 서 있는 곳 주변에서 나에게 필요한 정보만 빠르게 걸러 보고 싶다.",
+      "text": "지금 서 있는 곳 주변에서 내가 고른 종류의 정보만 남기고 나머지는 치우고 싶다.",
       "evidence": [
         {
           "surveyId": "sv-sample",
           "questionId": "q4",
-          "quote": "'복잡해서 원하는 것만 보기 어렵다' 4점 이상이 클러스터 내 약 71% (10/14명)"
+          "respondentLabel": "P7",
+          "quote": "5 — 매우 그렇다",
+          "populationContext": "35명 중 5점은 5명 (전체 평균 3.3점)"
         },
         {
           "surveyId": "sv-sample",
           "questionId": "q5",
+          "respondentLabel": "P7",
           "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
         }
       ]
     },
     {
-      "text": "이사 온 동네가 어디까지 '우리 동네'인지 감을 잡고 싶다.",
+      "text": "'우리 동네'가 어디까지인지 눈으로 확인하고 싶다.",
       "evidence": [
         {
           "surveyId": "sv-sample",
           "questionId": "q3",
-          "quote": "동네 경계 확인 9/35명 — 소수지만 뚜렷한 니즈로, 이 클러스터에 집중 분포"
-        },
-        {
-          "surveyId": "sv-sample",
-          "questionId": "q5",
-          "quote": "우리 동네가 어디까지인지 경계가 궁금했는데 보여주는 앱이 없었음"
+          "respondentLabel": "P7",
+          "quote": "'동네 경계 확인'을 선택",
+          "populationContext": "35명 중 9명만 고른 소수 항목"
         }
       ]
     }
   ],
+
   "painPoints": [
     {
-      "text": "화면에 쏟아지는 광고·아이콘 때문에 정작 찾는 정보가 묻힌다.",
+      "text": "찾는 것이 없어서가 아니라 다른 것에 묻혀서 못 본다. 화면이 채워질수록 사용 이유가 사라진다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q5",
+          "respondentLabel": "P7",
+          "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
+        },
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q4",
+          "respondentLabel": "P7",
+          "quote": "5 — 매우 그렇다"
+        }
+      ]
+    },
+    {
+      "text": "저장한 장소가 쌓이기만 하고 다시 찾아지지 않는다. 저장 기능이 사실상 버리는 서랍이 됐다.",
+      "evidence": [
+        {
+          "surveyId": "sv-sample",
+          "questionId": "q3",
+          "respondentLabel": "P7",
+          "quote": "저장은 계속 해두는데 목록이 길어져서 결국 다시 안 보게 돼요."
+        }
+      ]
+    }
+  ],
+
+  "behaviorModel": {
+    "firstMoves": [
+      {
+        "text": "열자마자 내 위치부터 확인하고, 화면 위에 무엇이 몇 개나 떠 있는지를 훑는다. 여기서 '많다'고 느끼면 그 인상이 끝까지 간다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q2",
+            "respondentLabel": "P7",
+            "quote": "5 — 매우 그렇다"
+          },
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q4",
+            "respondentLabel": "P7",
+            "quote": "5 — 매우 그렇다"
+          }
+        ]
+      },
+      {
+        "text": "길찾기 버튼은 그냥 지나친다. 대신 검색창·필터·카테고리부터 찾는다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q3",
+            "respondentLabel": "P7",
+            "quote": "'주변 장소 검색'은 고르고 '길찾기'는 고르지 않음",
+            "populationContext": "35명 중 31명이 길찾기를 고른 것과 정반대"
+          }
+        ]
+      },
+      {
+        "text": "내 동네·구역이 어디까지인지 화면에서 확인하려 한다. 경계가 그려져 있으면 축소·확대해 가며 옆 구역과 비교한다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q3",
+            "respondentLabel": "P7",
+            "quote": "'동네 경계 확인'을 선택",
+            "populationContext": "35명 중 9명"
+          }
+        ]
+      },
+      {
+        "text": "괜찮아 보이는 것을 발견하면 바로 저장/북마크를 눌러 본다. 그리고 저장한 것이 어디로 갔는지 곧바로 되찾아 보려 한다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q3",
+            "respondentLabel": "P7",
+            "quote": "'저장/북마크'를 선택 · \"저장은 계속 해두는데 목록이 길어져서 결국 다시 안 보게 돼요.\""
+          }
+        ]
+      }
+    ],
+    "decisionDrivers": [
+      {
+        "text": "내가 고르지 않은 정보를 화면에서 얼마나 걷어내 주는가. 끄는 수단이 있으면 계속 쓴다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q4",
+            "respondentLabel": "P7",
+            "quote": "5 — 매우 그렇다"
+          },
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q5",
+            "respondentLabel": "P7",
+            "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
+          }
+        ]
+      },
+      {
+        "text": "기존 지도 앱이 안 해 주는 것을 하나라도 하는가. 특히 '동네 경계'처럼 다른 데서 못 본 것이면 그것만으로 다시 연다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q3",
+            "respondentLabel": "P7",
+            "quote": "'동네 경계 확인'을 선택",
+            "populationContext": "35명 중 9명만 고른 소수 니즈"
+          }
+        ]
+      },
+      {
+        "text": "저장한 것을 다시 꺼내는 경로가 짧은가. 저장만 되고 회수가 안 되면 기능이 없는 것과 같다고 본다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q3",
+            "respondentLabel": "P7",
+            "quote": "저장은 계속 해두는데 목록이 길어져서 결국 다시 안 보게 돼요."
+          }
+        ]
+      }
+    ],
+    "dealBreakers": [
+      {
+        "text": "첫 화면부터 배너·아이콘·라벨이 겹쳐 뜨고 끌 방법이 없으면, 몇 번 더 눌러 본 뒤 결론을 내고 닫는다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q4",
+            "respondentLabel": "P7",
+            "quote": "5 — 매우 그렇다"
+          },
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q5",
+            "respondentLabel": "P7",
+            "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
+          }
+        ]
+      },
+      {
+        "text": "검색이나 필터 없이 지도만 던져 주면 '이건 내가 쓸 물건이 아니다'로 판정한다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q3",
+            "respondentLabel": "P7",
+            "quote": "'주변 장소 검색'이 이 사람의 주 사용 기능"
+          }
+        ]
+      },
+      {
+        "text": "이 서비스가 내세운 핵심(예: 경계선)이 정작 화면에서 제일 안 보이면, 그 지점을 콕 집어 문제 삼는다.",
+        "evidence": [
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q3",
+            "respondentLabel": "P7",
+            "quote": "'동네 경계 확인'을 선택"
+          },
+          {
+            "surveyId": "sv-sample",
+            "questionId": "q5",
+            "respondentLabel": "P7",
+            "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
+          }
+        ]
+      }
+    ],
+    "successMoment": {
+      "text": "필터를 한 번 껐다 켰을 때 화면에서 정보가 눈에 띄게 줄었다 늘어나는 걸 확인하는 순간. '이 화면은 내가 통제할 수 있다'가 확인되면 그때부터 태도가 바뀐다.",
       "evidence": [
         {
           "surveyId": "sv-sample",
           "questionId": "q4",
-          "quote": "전체 응답 평균 3.3점, 4점 이상 16/35명 — 상위 응답이 이 클러스터에 몰려 있음"
+          "respondentLabel": "P7",
+          "quote": "5 — 매우 그렇다"
         },
         {
           "surveyId": "sv-sample",
           "questionId": "q5",
+          "respondentLabel": "P7",
           "quote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
         }
       ]
-    }
-  ],
+    },
+    "comparisonAnchors": ["네이버 지도", "카카오맵", "구글 지도"],
+    "effortTolerance": "high",
+    "helpSeeking": "never"
+  },
+
   "techProfile": {
     "savviness": "high",
     "device": "iPhone 15 Pro (390x844)",
     "network": "fast"
   },
+
   "voice": {
     "tone": "직설적이고 분석적. 좋고 나쁜 이유를 조목조목 짚는다. 이모지는 거의 안 씀.",
     "verbosity": "long",
     "ratingBias": "harsh",
-    "sampleQuote": "첫 화면은 깔끔해서 기대했는데, 두 번째 화면부터 정보가 쏟아진다. 이러면 결국 안 열게 된다. 별 셋."
+    "sampleQuote": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
   },
-  "version": 1,
+
+  "confidence": {
+    "level": "low",
+    "answeredRatio": 1,
+    "gaps": [
+      "근거가 응답자 1명(P7)·문항 5개뿐이다. 답한 문항은 모두 채워졌지만(5/5), 이 정도 표본으로 사람 한 명을 세운 것이므로 신뢰도는 낮게 둔다.",
+      "비교 기준 서비스(comparisonAnchors)는 서베이에서 묻지 않았다. 국내 지도 앱 사용자라는 점에서 추론한 값이다.",
+      "effortTolerance·helpSeeking은 직접 묻는 문항이 없다. q2·q4가 모두 5점(많이 쓰면서 불만도 크다 = 참고 계속 쓴다)인 데서 추론했다.",
+      "직업·거주지·가구 구성은 서베이에 문항이 없다. 이름에 붙은 '32, 프로덕트 디자이너'는 호칭용 설정이며 응답으로 확인된 사실이 아니다 — demographics에는 q1에서 확인된 연령대만 넣었다.",
+      "'이사 온 동네'라는 맥락은 q3의 '동네 경계 확인' 선택에서 유추한 것이지 본인이 말한 것이 아니다."
+    ]
+  },
+
+  "version": 2,
+  "revisionNote": "v2 — 문항별 집계('35명 중 71%')로 세웠던 클러스터 대표를 폐기하고, 응답자 P7 한 명의 응답 프로필(q1~q5)에서 다시 세웠다. behaviorModel과 응답 프로필 원본을 추가했고, 모든 근거에 respondentLabel을 붙였다. 집계는 populationContext로 강등했다.",
   "generatedBy": "claude-sonnet-4-5 (샘플 예시 데이터)",
   "createdAt": "2026-07-25"
 }

@@ -11,7 +11,21 @@
     "title": { "type": "string" },
     "description": { "type": "string" },
     "status": { "type": "string", "enum": ["draft", "open", "closed", "imported"] },
-    "source": { "type": "string", "enum": ["native", "google-forms", "csv-import"], "default": "native" },
+    "source": {
+      "type": "string",
+      "enum": ["native", "google-forms", "csv-import", "now-here-survey"],
+      "default": "native",
+      "description": "이 서베이가 어디서 왔는지. now-here-survey는 외부 설문 시스템에서 읽기 전용으로 연동된 회차다 (docs/SURVEY-INTEGRATION.md)"
+    },
+    "externalRef": {
+      "type": "object",
+      "description": "연동 출처 추적용 — 외부 시스템에서 가져온 서베이에만 있다. 재동기화 시 어느 설문·회차를 다시 읽어야 하는지 식별한다. source가 'now-here-survey'일 때 채워진다.",
+      "properties": {
+        "surveyId": { "type": "string", "description": "원본 시스템의 설문 id (now-here-survey: surveys.id UUID)" },
+        "sessionId": { "type": "string", "description": "원본 시스템의 회차 id (now-here-survey: sessions.id UUID)" },
+        "syncedAt": { "type": "string", "format": "date-time", "description": "마지막으로 동기화한 시각 (ISO 8601)" }
+      }
+    },
     "auth": {
       "type": "string",
       "enum": ["anonymous", "google"],
@@ -26,8 +40,13 @@
         "required": ["id", "type", "text"],
         "properties": {
           "id": { "type": "string" },
-          "type": { "type": "string", "enum": ["single", "multi", "likert", "open", "number", "rank"] },
+          "type": {
+            "type": "string",
+            "enum": ["single", "multi", "likert", "open", "number", "rank"],
+            "description": "now-here-survey 연동 변환은 이 중 single/multi/open 셋만 만든다 (choice→single|multi, ox→single, text→open, info→제외)"
+          },
           "text": { "type": "string" },
+          "description": { "type": "string", "description": "문항 보조 설명 (now-here-survey 연동 시 slides.body가 여기로 온다)" },
           "options": { "type": "array", "items": { "type": "string" } },
           "scale": { "type": "integer", "description": "likert 척도 (5 또는 7)" },
           "personaDimension": {

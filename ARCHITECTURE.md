@@ -30,6 +30,12 @@
 │ demo-reviewer   (Playwright + Claude API)                   │
 └─────────────────────────────────────────────────────────────┘
 
+┌─ 외부 소스 — now-here-survey (Supabase) · 읽기 전용 ────────┐
+│ surveys ─ sessions ─ pages ─ slides · participants ·        │
+│ responses  ──GET──▶ apps/survey 연동 화면 ─▶ Firestore 사본 │
+│ Persona Loop는 GET만 보낸다 — 원본 데이터·진행 상태 불변    │
+└─────────────────────────────────────────────────────────────┘
+
 repo에 커밋되는 데이터: data/seed/sample/ (가상 샘플) 뿐 — 실데이터 0건
 ```
 
@@ -107,6 +113,28 @@ now-here가 직접 만든 앱이라는 점을 최대한 활용한다:
 - 필요한 것: **Firebase 서비스 계정 키**(Admin SDK)를 GitHub Actions Secrets에 등록하고, 에이전트 스크립트가 Admin SDK로 `projects/<pid>/personas`·`reviews`·`sessions`에 쓰도록 구현. Admin SDK는 보안 규칙을 우회하므로 웹 클라이언트용 allowlist와 무관하게 동작한다.
 - 아직 구현되지 않았다. 그때까지 페르소나·리뷰·세션은 웹 화면에서 수동으로 넣거나 샘플 시드로만 존재한다.
 - 대안(더 단순): 에이전트를 Actions가 아니라 로컬에서 돌리고 결과를 웹 화면에서 붙여넣기. 서비스 계정 키를 만들지 않아도 되므로 초기에는 이쪽이 안전하다.
+
+### 8. 설문 시스템 연동 (now-here-survey)
+
+설문을 만들고 현장에서 진행하는 도구는 이미 있다 — [now-here-survey](https://gihoon-mx.github.io/now-here-survey/)(React+TS+Vite / Supabase).
+Persona Loop가 설문 기능을 하나 더 만들면 중복이고 데이터가 갈라진다. 그래서 **Persona Loop는 설문을 새로 만들지 않고, 응답을 페르소나의 재료로 가져다 쓴다.**
+
+- **역할 분담**: now-here-survey = 설문 설계·현장 진행·참가자 관리·엑셀 내보내기 / Persona Loop = `personaDimension` 태깅·페르소나 생성·Agent 리뷰.
+  **원본(source of truth)은 항상 now-here-survey이고, Persona Loop가 보관하는 것은 스냅샷 사본이다.**
+- **읽기 전용이 설계의 전제다.** now-here-survey는 현장에서 운영 중인 서비스라, 여기에 영향을 주는 것은 허용되지 않는다.
+  `packages/core/survey-source.js`에서 데이터에 닿는 경로는 GET만 보내는 `get()` 함수 **하나뿐**이고,
+  POST는 인증 토큰 발급·갱신(`/auth/v1/token`) 두 곳뿐이다. PATCH·DELETE·RPC·Realtime 구독은 없다.
+  **이 파일에 쓰기 코드를 추가하지 않는다**(MODULES.md M10 규칙).
+- **인증**: 원본의 RLS 정책이 전부 `to authenticated`라 anon 키만으로는 아무것도 읽히지 않는다 → **설문 시스템 관리자 계정 로그인이 필수**다.
+  자격증명은 사용자가 화면에 직접 입력하고, 토큰은 `sessionStorage`에만 둔다(탭을 닫으면 소멸 — 현장 공유 PC 고려). Persona Loop의 Firebase 로그인과는 별개다.
+- **매핑**: `choice`→`single`/`multi`, `ox`→`single`(O·X), `text`→`open`, `info`는 제외. 연동 변환이 만드는 문항 타입은 이 셋뿐이다.
+  문항별 자유 의견(`comment`)은 페르소나의 가장 좋은 재료라 `<qid>-c` 주관식 문항으로 따로 담는다(의견이 하나라도 달린 문항에 한해).
+- **개인정보 최소 수집**: 참가자 실명·표시 이름·로그인 아이디·passcode는 가져오지 않는다. 저장되는 것은 회차 안에서만 유효한 익명 라벨 `P1`, `P2` … 뿐이다.
+- **재동기화**: `importResponses(..., { source:'now-here-survey', replace:true })` — 같은 출처의 기존 응답을 지우고 다시 넣어 중복 누적을 막는다.
+  다른 출처(`live`·`import`)의 응답은 건드리지 않는다. 다만 원본의 문항 구성이 바뀐 뒤 재동기화하면 `q1`,`q2`… 번호가 밀려 태깅이 어긋날 수 있다.
+- **한계**: 실시간이 아니라 수동 스냅샷이다(`externalRef.syncedAt`이 시점을 기록). 진행 중(`live`) 회차는 응답이 계속 늘어나므로 **종료 후 동기화를 권장**한다.
+
+절차·매핑표·주의점 전체는 [docs/SURVEY-INTEGRATION.md](docs/SURVEY-INTEGRATION.md).
 
 ## 비용 발생 지점 (실행 전 항상 고지)
 

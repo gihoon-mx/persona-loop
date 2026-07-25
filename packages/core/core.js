@@ -301,9 +301,25 @@ export async function submitResponse(projectId, surveyId, answers) {
 
 /** CSV 임포트 등 대량 쓰기 (admin). rows: [{answers:{qid:value}, submittedAt?}]
  *  responseCount는 여기서 increment로 갱신한다 — 호출부는 saveSurvey에 responseCount를 넣지 말 것. */
-export async function importResponses(projectId, surveyId, rows) {
+export async function importResponses(projectId, surveyId, rows, { source = 'import', replace = false } = {}) {
   const { fs, db } = requireDb();
   const col = fs.collection(db, 'projects', projectId, 'surveys', surveyId, 'responses');
+
+  // 재동기화: 같은 출처로 들어온 기존 응답을 지우고 다시 넣는다 (중복 누적 방지).
+  // 삭제 조회는 withTimeout으로 감싸지 않는다 — 실패를 삼키면 옛 응답 위에 새 응답이
+  // 얹혀 조용히 중복된다. 실패하면 아무것도 쓰지 않고 그대로 예외를 올린다.
+  let removed = 0;
+  if (replace) {
+    const snap = await fs.getDocs(fs.query(col, fs.where('source', '==', source)));
+    const olds = snap.docs;
+    for (let i = 0; i < olds.length; i += 400) {
+      const batch = fs.writeBatch(db);
+      olds.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await writeWithTimeout(batch.commit());
+    }
+    removed = olds.length;
+  }
+
   const CHUNK = 400;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const batch = fs.writeBatch(db);
@@ -311,11 +327,19 @@ export async function importResponses(projectId, surveyId, rows) {
       batch.set(fs.doc(col), {
         answers: row.answers,
         submittedAt: row.submittedAt || null,
-        source: 'import',
+        source,
+        // 연동 응답은 익명 라벨(P1, P2…)만 가져온다 — 실명·아이디는 저장하지 않는다.
+        respondentLabel: row.respondentLabel || null,
         respondent: null,
       });
     });
     await writeWithTimeout(batch.commit());
+  }
+  if (replace) {
+    // 다른 출처(live·import) 응답은 지우지 않았으므로 총계는 증감분으로 맞춘다.
+    await writeWithTimeout(fs.setDoc(fs.doc(db, 'projects', projectId, 'surveys', surveyId),
+      { responseCount: fs.increment(rows.length - removed) }, { merge: true }));
+    return { added: rows.length, removed };
   }
   await writeWithTimeout(fs.setDoc(fs.doc(db, 'projects', projectId, 'surveys', surveyId),
     { responseCount: fs.increment(rows.length) }, { merge: true }));

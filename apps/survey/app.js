@@ -3,9 +3,16 @@
 //   ?p=<pid>                     서베이 목록 (admin)
 //   ?p=<pid>&view=new            새 서베이 만들기 (admin)
 //   ?p=<pid>&view=import         CSV 임포트 위저드 (admin)
+//   ?p=<pid>&view=link           now-here-survey 연동 (admin, 읽기 전용)
+//     &src=<surveyId>&sess=<sessionId>  ↳ 특정 회차로 바로 진입 (재동기화용)
 //   ?p=<pid>&s=<sid>             상세/결과 (admin)
 //   ?p=<pid>&s=<sid>&mode=respond  응답자용 공개 폼 (미니멀 · 유일한 비공개 게이트 예외)
 import * as core from '../../packages/core/core.js';
+import {
+  SURVEY_SOURCE, sourceState, initSurveySource, connectSource, disconnectSource,
+  listSourceSurveys, listSourceSessions, getSourceStructure,
+  listSourceParticipants, listSourceResponses, convertSession,
+} from '../../packages/core/survey-source.js';
 
 const { esc, qsParam, state } = core;
 const app = document.getElementById('app');
@@ -43,6 +50,8 @@ async function routeAdminView() {
     app.innerHTML = `<p class="empty">프로젝트를 먼저 선택하세요. <a href="../../">← 프로젝트 목록으로</a></p>`;
   } else if (surveyId) {
     await renderDetail(projectId, surveyId);
+  } else if (view === 'link') {
+    await renderLinkView(projectId);
   } else if (view === 'import') {
     renderImportWizard(projectId);
   } else if (view === 'new') {
@@ -66,8 +75,12 @@ function typeSelectHtml(name, current) {
 }
 
 function dimSelectHtml(name, current) {
-  return `<select data-${name}>${DIMENSIONS.map(([v, l]) =>
-    `<option value="${v}"${v === current ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  // 목록에 없는 값(예전 스키마·수기 편집)이 들어와도 조용히 '(지정 안 함)'으로 떨어지지 않게 보존한다.
+  const cur = String(current ?? '');
+  const extra = (cur && !DIMENSIONS.some(([v]) => v === cur))
+    ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : '';
+  return `<select data-${name}>${extra}${DIMENSIONS.map(([v, l]) =>
+    `<option value="${v}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 }
 
 function crumbHtml(pid, extra = '') {
@@ -97,7 +110,8 @@ async function renderList(pid) {
     ${crumbHtml(pid)}
     <div class="section-head" style="margin-top:0">
       <h2>서베이</h2>
-      <span style="display:flex;gap:8px">
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn" href="?p=${esc(pid)}&view=link">now-here-survey 연동</a>
         <a class="btn" href="?p=${esc(pid)}&view=import">CSV 임포트</a>
         <a class="btn primary" href="?p=${esc(pid)}&view=new">+ 새 서베이</a>
       </span>
@@ -105,7 +119,8 @@ async function renderList(pid) {
     <div class="grid cols2">
       ${surveys.length ? surveys.map((sv, i) => `
         <a class="card" href="?p=${esc(pid)}&s=${esc(sv.id)}">
-          <h3>${esc(sv.title)} ${statusBadge(sv.status)}</h3>
+          <h3>${esc(sv.title)} ${statusBadge(sv.status)}${
+            sv.source === 'now-here-survey' ? ' <span class="badge accent">연동</span>' : ''}</h3>
           <p>${esc(sv.description || '')}</p>
           <p class="small muted">문항 ${(sv.questions || []).length}개 · 응답 ${counts[i] ?? sv.responseCount ?? 0}건</p>
         </a>`).join('')
@@ -549,6 +564,39 @@ async function renderDetail(pid, sid) {
   }
   document.title = `${survey.title} — Persona Loop`;
 
+  // 문항별 페르소나 차원 편집 — 연동·CSV·직접 생성 모든 서베이에 공통으로 보인다.
+  // 미리보기(연동 위저드)에서 지정한 값도, 나중에 마음이 바뀐 값도 여기서 고친다.
+  const dimCardHtml = (questions) => `
+    <div class="section-head"><h2>페르소나 차원 태깅</h2></div>
+    <p class="small muted" style="margin:-6px 0 12px">
+      각 문항이 페르소나의 어떤 면을 밝히는지 지정해 두면, 페르소나 생성이 그 근거를 문항에 연결합니다.
+      여기서 바꿔도 응답 데이터와 원본 설문은 변경되지 않습니다.
+    </p>
+    ${questions.length ? `
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:44px">#</th><th>문항</th>
+            <th style="width:110px">유형</th>
+            <th class="dim-col" style="width:150px">페르소나 차원</th>
+          </tr></thead>
+          <tbody>
+            ${questions.map((q, i) => `
+              <tr>
+                <td class="small muted">${i + 1}</td>
+                <td>${esc(q.text)}</td>
+                <td><span class="badge">${esc(TYPE_LABELS[q.type] || q.type)}</span></td>
+                <td class="dim-col">${dimSelectHtml('dim', q.personaDimension || '')
+                  .replace('<select ', `<select data-qid="${esc(q.id)}" `)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+        <span class="small muted" data-dim-msg></span>
+        <button class="btn primary" data-save-dims>차원 저장</button>
+      </div>` : `<p class="empty">문항이 없습니다.</p>`}`;
+
   const draw = async () => {
     // 데이터 소스: (a) Firestore 원본 응답 실시간 집계 → (b) 서베이 문서에 저장된 aggregates → (c) 없음
     let agg = null, aggSource = null;
@@ -561,6 +609,22 @@ async function renderDetail(pid, sid) {
     const questions = survey.questions || [];
     const respondUrl = `${location.origin}${location.pathname}?p=${encodeURIComponent(pid)}&s=${encodeURIComponent(sid)}&mode=respond`;
 
+    // now-here-survey에서 연동된 서베이는 출처 회차와 마지막 동기화 시각을 밝힌다.
+    const ext = survey.externalRef || null;
+    // fromSource: 원본 설문에서 가져온 사본 — 여기서 응답을 받지 않는다(공개 폼·상태 변경 금지).
+    // isLinked: 그중 회차 정보까지 있어 '다시 동기화'가 가능한 경우.
+    const fromSource = survey.source === 'now-here-survey';
+    const isLinked = fromSource && !!ext;
+    const sourceAdminUrl = core.safeUrl(SURVEY_SOURCE.adminUrl);
+    const resyncHref = isLinked
+      ? `?p=${encodeURIComponent(pid)}&view=link&src=${encodeURIComponent(ext.surveyId || '')}`
+        + `&sess=${encodeURIComponent(ext.sessionId || '')}`
+      : '';
+    const sourceMeta = isLinked
+      ? ` · 출처: now-here-survey · 회차 ${esc(String(ext.sessionId || '').slice(0, 8))}`
+        + (ext.syncedAt ? ` · 마지막 동기화 ${esc(fmtDate(ext.syncedAt))}` : '')
+      : (survey.source ? ` · 출처: ${esc(survey.source)}` : '');
+
     app.innerHTML = `
       ${crumbHtml(pid, ` · <a href="?p=${esc(pid)}">서베이 목록</a>`)}
       <div class="section-head" style="margin-top:0">
@@ -568,26 +632,41 @@ async function renderDetail(pid, sid) {
       </div>
       <p class="muted" style="margin:-8px 0 6px">${esc(survey.description || '')}</p>
       <p class="small muted">문항 ${questions.length}개 · 응답 ${agg?.responseCount ?? survey.responseCount ?? 0}건
-        ${survey.source ? ` · 출처: ${esc(survey.source)}` : ''}
+        ${sourceMeta}
         ${survey.createdAt ? ` · ${esc(survey.createdAt)}` : ''}</p>
       <div class="card" style="margin-top:14px">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <span class="small muted">상태</span>
-          <select data-status style="width:auto">
+          <select data-status style="width:auto"${fromSource ? ' disabled' : ''}>
             ${['draft', 'open', 'closed'].map((s) =>
               `<option value="${s}"${survey.status === s ? ' selected' : ''}>${esc(STATUS_LABELS[s])}</option>`).join('')}
             ${survey.status === 'imported' ? `<option value="imported" selected>${esc(STATUS_LABELS.imported)}</option>` : ''}
           </select>
-          <button class="btn" data-copy-link>응답 링크 복사</button>
+          ${fromSource ? `<span class="small muted">연동 서베이는 원본에서 진행합니다 — 여기서 응답을 받지 않습니다</span>`
+            : `<button class="btn" data-copy-link>응답 링크 복사</button>`}
+          ${fromSource && survey.status === 'open' ? `<button class="btn" data-close-public
+            title="공개 응답 폼을 즉시 닫고 상태를 '임포트됨'으로 되돌립니다">공개 폼 닫기</button>` : ''}
           ${agg ? `<button class="btn" data-download
             title="서베이 정의와 집계 결과를 JSON 한 파일로 내려받습니다 (백업·외부 분석용)">집계 JSON 내보내기</button>` : ''}
+          ${isLinked ? `<a class="btn" href="${esc(resyncHref)}"
+            title="now-here-survey의 해당 회차를 다시 읽어옵니다 (원본은 변경되지 않습니다)">다시 동기화</a>` : ''}
+          ${fromSource && sourceAdminUrl ? `<a class="btn" href="${esc(sourceAdminUrl)}"
+            target="_blank" rel="noopener noreferrer"
+            title="원본 설문(now-here-survey) 관리자 화면을 새 탭에서 엽니다">원본 관리 화면 ↗</a>` : ''}
         </div>
         <p class="small muted" style="margin-top:8px">
-          상태를 <b>진행 중</b>으로 두면 링크를 가진 누구나 로그인 없이 <b>문항만</b> 볼 수 있습니다
-          (집계·응답 원본은 공개되지 않습니다). 마감하면 링크는 즉시 닫힙니다.
+          ${fromSource
+            ? `이 서베이는 now-here-survey에서 읽어온 <b>사본</b>입니다. 회차 진행·응답 수집은 원본에서만 하며,
+               여기서는 결과 열람과 페르소나 차원 태깅만 합니다. 그래서 상태 변경과 공개 응답 폼은 막혀 있습니다.
+               ${survey.status === 'open'
+                 ? `<b style="color:var(--danger)">지금 공개 폼이 열려 있어 원본에서 가져온 문항(참가자 의견 포함)이
+                    링크만 있으면 보입니다 — '공개 폼 닫기'로 즉시 닫으세요.</b>` : ''}`
+            : `상태를 <b>진행 중</b>으로 두면 링크를 가진 누구나 로그인 없이 <b>문항만</b> 볼 수 있습니다
+               (집계·응답 원본은 공개되지 않습니다). 마감하면 링크는 즉시 닫힙니다.`}
           ${agg ? '내보낸 JSON은 백업·외부 분석용이며 사이트 표시에는 쓰이지 않습니다 (데이터는 Firestore에만 저장됨).' : ''}
         </p>
       </div>
+      ${dimCardHtml(questions)}
       <div class="section-head"><h2>결과</h2>
         ${aggSource === 'live' ? `<span class="badge accent">원본 응답 실시간 집계</span>`
           : aggSource === 'stored' ? `<span class="badge">저장된 집계 (${esc(agg.computedAt || '')})</span>` : ''}
@@ -602,7 +681,9 @@ async function renderDetail(pid, sid) {
             ${questionResultHtml(q, agg.byQuestion?.[q.id], agg.responseCount)}
           </div>`).join('')
         : `<p class="empty">아직 응답이 없습니다.<br>
-           <span class="small">상태를 <b>진행 중</b>으로 바꾼 뒤 응답 링크를 공유해 응답을 모아보세요.</span></p>`}`;
+           <span class="small">${fromSource
+             ? '원본 회차에 응답이 쌓인 뒤 <b>다시 동기화</b>하면 여기에 결과가 나타납니다.'
+             : '상태를 <b>진행 중</b>으로 바꾼 뒤 응답 링크를 공유해 응답을 모아보세요.'}</span></p>`}`;
     core.renderModeBanner(app);
 
     app.querySelector('[data-status]')?.addEventListener('change', async (ev) => {
@@ -619,10 +700,51 @@ async function renderDetail(pid, sid) {
         setTimeout(() => { ev.target.textContent = '응답 링크 복사'; }, 1500);
       } catch { prompt('아래 링크를 복사하세요:', respondUrl); }
     });
+    // 이 수정 이전에 연동 서베이를 '진행 중'으로 바꿔둔 경우를 위한 탈출구 — 공개 폼을 즉시 닫는다.
+    app.querySelector('[data-close-public]')?.addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      try {
+        await core.saveSurvey(pid, { id: sid, status: 'imported' });
+        survey.status = 'imported';
+        await draw();
+      } catch (e) { alert(e.message); ev.target.disabled = false; }
+    });
     app.querySelector('[data-download]')?.addEventListener('click', () => {
       // 백업·외부 분석용 내보내기 (repo에 커밋하지 않는다 — 원본은 Firestore가 유일)
       const out = { ...survey, responseCount: agg.responseCount ?? survey.responseCount, aggregates: agg };
       downloadJson(out, `${sid}.json`);
+    });
+    app.querySelector('[data-save-dims]')?.addEventListener('click', async (ev) => {
+      const btn = ev.target;
+      const msg = app.querySelector('[data-dim-msg]');
+      const picked = {};
+      app.querySelectorAll('.dim-col select[data-qid]').forEach((sel) => { picked[sel.dataset.qid] = sel.value; });
+
+      // merge 저장이라도 배열 필드는 통째로 교체된다 — 기존 questions를 전부 복사해
+      // personaDimension만 갈아끼운 '완전한' 배열을 넘겨야 문항이 사라지지 않는다.
+      const next = questions.map((q) => {
+        const { personaDimension, ...rest } = q;
+        const v = Object.prototype.hasOwnProperty.call(picked, q.id) ? picked[q.id] : (personaDimension || '');
+        return v ? { ...rest, personaDimension: v } : rest;   // 빈 값이면 키 자체를 뺀다
+      });
+
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = '저장 중…';
+      msg.textContent = '';
+      msg.style.color = '';
+      try {
+        await core.saveSurvey(pid, { id: sid, questions: next });
+        survey.questions = next;
+        await draw();   // 결과 섹션의 차원 뱃지도 함께 갱신
+        const fresh = app.querySelector('[data-dim-msg]');
+        if (fresh) { fresh.textContent = '저장되었습니다.'; fresh.style.color = 'var(--accent)'; }
+      } catch (e) {
+        msg.style.color = 'var(--danger)';
+        msg.textContent = `저장 실패: ${e.message}`;
+        btn.disabled = false;
+        btn.textContent = label;
+      }
     });
   };
 
@@ -731,4 +853,445 @@ async function renderRespond(pid, sid) {
       btn.disabled = false; btn.textContent = '제출하기';
     }
   });
+}
+
+// ---------- 뷰 5: now-here-survey 연동 (읽기 전용) ----------
+// 이 화면은 외부 설문 서비스에서 **읽기만** 한다. survey-source.js는 GET과 로그인 POST 외에
+// 어떤 요청도 보내지 않으므로, 여기서 무엇을 하든 원본 설문의 데이터·진행 상태는 바뀌지 않는다.
+
+const SOURCE_STATUS_LABELS = { draft: '초안', live: '진행 중', ended: '종료' };
+
+function sourceStatusBadge(status) {
+  const cls = status === 'live' ? 'ok' : status === 'ended' ? 'accent' : '';
+  return `<span class="badge ${cls}">${esc(SOURCE_STATUS_LABELS[status] || status || '-')}</span>`;
+}
+
+/** ISO/날짜 문자열 → YYYY-MM-DD (파싱 실패 시 앞 10자). */
+function fmtDate(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toISOString().slice(0, 10);
+}
+
+/** 서베이 id 후보용 슬러그 — 한글 회차 이름이면 빈 문자열이 되므로 호출부에서 대체값을 쓴다. */
+function slugifyId(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30);
+}
+
+function optionsSummary(q) {
+  if (q.type === 'open') return '(주관식)';
+  const opts = q.options || [];
+  if (!opts.length) return '—';
+  const head = opts.slice(0, 4).map((o) => esc(o)).join(' / ');
+  return opts.length > 4 ? `${head} <span class="muted">외 ${opts.length - 4}개</span>` : head;
+}
+
+async function renderLinkView(pid) {
+  const crumb = crumbHtml(pid, ` · <a href="?p=${esc(pid)}">서베이 목록</a>`);
+  const adminUrl = core.safeUrl(SURVEY_SOURCE.adminUrl);
+  const wantSurvey = qsParam('src');   // 상세 뷰의 "다시 동기화"로 들어온 경우
+  const wantSession = qsParam('sess');
+
+  const lk = {
+    surveys: null, surveysErr: '',
+    survey: null, sessions: null, sessionsErr: '',
+    session: null, preview: null, previewErr: '', rawResponseCount: 0,
+    dims: {}, existing: null, targetId: '',
+  };
+
+  // sessionStorage가 막혀 있어도(사생활 보호 모드 등) 화면은 떠야 한다.
+  try { initSurveySource(); } catch { /* 미연결로 취급 */ }
+
+  // ----- 조각 렌더러 -----
+  const stepsHtml = () => {
+    const n = !sourceState.connected ? 1 : !lk.preview ? 2 : 3;
+    return `<div class="steps">
+      ${['1 연결', '2 설문 · 회차 선택', '3 미리보기 · 가져오기'].map((s, i) =>
+        `<span class="${i + 1 === n ? 'on' : ''}">${esc(s)}</span>`).join('')}
+    </div>`;
+  };
+
+  const connectHtml = () => {
+    if (sourceState.connected) {
+      return `<div class="card link-bar">
+        <span class="badge ok">연결됨</span>
+        <span class="small">${esc(sourceState.email || '')}</span>
+        <span style="flex:1"></span>
+        ${adminUrl ? `<a class="btn" href="${esc(adminUrl)}" target="_blank" rel="noopener">설문 관리자 화면 ↗</a>` : ''}
+        <button class="btn" data-disconnect>연결 해제</button>
+      </div>`;
+    }
+    return `<div class="card">
+      <h3>설문 시스템에 연결</h3>
+      <p class="small" style="margin-top:8px">
+        Persona Loop는 설문 데이터를 <b>읽기만</b> 합니다.
+        기존 설문 서비스의 데이터나 진행 상태를 변경하지 않습니다.
+      </p>
+      <p class="small muted" style="margin-top:6px">
+        now-here-survey는 관리자만 데이터를 읽을 수 있도록 잠겨 있어(RLS),
+        <b>설문 관리자 계정</b>으로 로그인해야 합니다.
+        로그인 정보는 이 브라우저 탭에만 보관되고 탭을 닫으면 사라집니다.
+        ${adminUrl ? `· <a href="${esc(adminUrl)}" target="_blank" rel="noopener">설문 관리자 화면 열기 ↗</a>` : ''}
+      </p>
+      <form data-connect-form>
+        <label for="nhs-email">이메일</label>
+        <input type="text" id="nhs-email" data-email autocomplete="username" placeholder="admin@example.com">
+        <label for="nhs-pw">비밀번호</label>
+        <input type="password" id="nhs-pw" data-password autocomplete="current-password">
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <a class="btn" href="?p=${esc(pid)}">취소</a>
+          <button type="submit" class="btn primary" data-connect-btn>연결하기</button>
+        </div>
+        <p class="small" data-connect-err style="color:var(--danger);margin-top:8px;white-space:pre-wrap"></p>
+      </form>
+    </div>`;
+  };
+
+  const surveysHtml = () => {
+    if (!sourceState.connected) return '';
+    if (lk.surveysErr) {
+      return `<div class="section-head"><h2>설문 선택</h2></div>
+        <div class="card"><p class="small" style="color:var(--danger)">설문 목록을 불러오지 못했습니다: ${esc(lk.surveysErr)}</p>
+        <p style="margin-top:10px"><button class="btn" data-reload-surveys>다시 시도</button></p></div>`;
+    }
+    if (lk.surveys === null) return `<p class="empty">설문 목록을 불러오는 중…</p>`;
+    if (!lk.surveys.length) return `<p class="empty">이 계정으로 볼 수 있는 설문이 없습니다.</p>`;
+    return `<div class="section-head"><h2>설문 선택</h2></div>
+      <div class="grid cols2">
+        ${lk.surveys.map((s) => `
+          <button class="card pick" type="button" data-pick-survey="${esc(s.id)}"
+            aria-label="설문 선택: ${esc(s.title || '제목 없음')}"
+            aria-pressed="${lk.survey && lk.survey.id === s.id ? 'true' : 'false'}">
+            <h3>${esc(s.title || '(제목 없음)')}</h3>
+            <p class="small muted">생성 ${esc(fmtDate(s.created_at))}</p>
+          </button>`).join('')}
+      </div>`;
+  };
+
+  const sessionsHtml = () => {
+    if (!lk.survey) return '';
+    let body;
+    if (lk.sessionsErr) {
+      body = `<div class="card"><p class="small" style="color:var(--danger)">회차를 불러오지 못했습니다: ${esc(lk.sessionsErr)}</p>
+        <p style="margin-top:10px"><button class="btn" data-reload-sessions>다시 시도</button></p></div>`;
+    } else if (lk.sessions === null) {
+      body = `<p class="empty">회차를 불러오는 중…</p>`;
+    } else if (!lk.sessions.length) {
+      body = `<p class="empty">이 설문에는 아직 회차가 없습니다.</p>`;
+    } else {
+      body = `<div class="grid cols2">
+        ${lk.sessions.map((s) => `
+          <button class="card pick" type="button" data-pick-session="${esc(s.id)}"
+            aria-label="회차 선택: ${esc(s.name || '이름 없는 회차')} (${esc(SOURCE_STATUS_LABELS[s.status] || s.status || '-')})"
+            aria-pressed="${lk.session && lk.session.id === s.id ? 'true' : 'false'}">
+            <h3>${esc(s.name || '(이름 없는 회차)')} ${sourceStatusBadge(s.status)}</h3>
+            <p class="small muted">생성 ${esc(fmtDate(s.created_at))}${
+              s.ended_at ? ` · 종료 ${esc(fmtDate(s.ended_at))}` : ''}</p>
+          </button>`).join('')}
+      </div>`;
+    }
+    return `<div class="section-head"><h2>회차 선택</h2></div>
+      <p class="small muted" style="margin:-6px 0 12px">
+        응답이 쌓인 회차를 고르세요 — <b>종료</b>된 회차가 가장 안전합니다.
+        진행 중인 회차는 아직 응답이 들어오는 중이라 나중에 다시 동기화해야 할 수 있습니다.
+      </p>
+      ${body}`;
+  };
+
+  const previewHtml = () => {
+    if (!lk.session) return '';
+    if (lk.previewErr) {
+      return `<div class="section-head"><h2>미리보기</h2></div>
+        <div class="card"><p class="small" style="color:var(--danger)">회차 데이터를 불러오지 못했습니다: ${esc(lk.previewErr)}</p>
+        <p style="margin-top:10px"><button class="btn" data-reload-preview>다시 시도</button></p></div>`;
+    }
+    if (!lk.preview) return `<p class="empty">회차 데이터를 불러오는 중…</p>`;
+
+    const qs = lk.preview.definition.questions || [];
+    const respondents = lk.preview.responses.length;
+    return `<div class="section-head"><h2>미리보기</h2>
+        <span class="badge">아직 가져오지 않음</span></div>
+      <div class="card">
+        <p class="small" style="margin-bottom:6px"><b>${esc(lk.preview.definition.title)}</b></p>
+        <div class="num-summary">
+          <span>문항 <b>${qs.length}</b>개</span>
+          <span>응답자 <b>${respondents}</b>명</span>
+          <span>응답 <b>${lk.rawResponseCount}</b>건</span>
+        </div>
+        <p class="small muted" style="margin-top:8px">
+          안내(info) 페이지는 문항에서 제외되고, 자유 의견이 달린 문항은 <code>-c</code> 주관식 문항으로 따로 들어옵니다.
+          참가자는 P1, P2 … 로 익명화되어 이름·아이디는 저장되지 않습니다.
+        </p>
+        ${respondents === 0 ? `<p class="small" style="color:var(--danger);margin-top:8px">
+          이 회차에는 아직 응답이 없습니다. 문항 구조만 가져오게 됩니다.</p>` : ''}
+      </div>
+
+      <div class="banner info" style="margin-top:14px">
+        <b>페르소나 차원 지정</b> — 각 문항이 페르소나의 어떤 면을 밝히는지 여기서 정해두면,
+        나중에 페르소나 생성이 그 근거를 문항에 연결합니다. 이게 Persona Loop가 원본 설문에 더하는 값입니다.
+        (가져온 뒤에도 서베이 상세 화면의 <b>페르소나 차원 태깅</b> 카드에서 언제든 바꿀 수 있습니다.)
+      </div>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr>
+            <th style="width:44px">#</th><th style="width:110px">유형</th><th>문항</th>
+            <th>선택지</th><th class="dim-col" style="width:150px">페르소나 차원</th>
+          </tr></thead>
+          <tbody>
+            ${qs.map((q, i) => `
+              <tr>
+                <td class="small muted">${i + 1}</td>
+                <td><span class="badge">${esc(TYPE_LABELS[q.type] || q.type)}</span></td>
+                <td>${esc(q.text)}${q.description
+                  ? `<br><span class="small muted">${esc(q.description)}</span>` : ''}</td>
+                <td class="small muted">${optionsSummary(q)}</td>
+                <td class="dim-col">${dimSelectHtml('dim', lk.dims[q.id] || '')
+                  .replace('<select ', `<select data-qid="${esc(q.id)}" `)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  };
+
+  const importHtml = () => {
+    if (!lk.preview) return '';
+    const resync = !!lk.existing;
+    return `<div class="section-head"><h2>가져오기</h2></div>
+      <div class="card">
+        ${resync ? `<div class="banner" style="margin-bottom:14px">
+          이 회차는 이미 <b>${esc(lk.existing.id)}</b>로 가져온 적이 있습니다.
+          그대로 실행하면 <b>재동기화</b>가 되어, 이 서베이의 기존 연동 응답을 모두 지우고 새로 읽어온 응답으로 <b>교체</b>합니다.
+          직접 입력한 응답이나 CSV로 임포트한 응답은 건드리지 않습니다.<br>
+          기존 페르소나 차원 태깅은 문항 id가 같으면 유지됩니다 (위 표에 그대로 채워져 있습니다).
+        </div>` : `<p class="small muted" style="margin-bottom:6px">
+          같은 회차를 나중에 다시 가져오면 이 서베이의 연동 응답은 새 데이터로 교체됩니다 (중복이 쌓이지 않습니다).
+        </p>`}
+        <label for="nhs-target">서베이 ID (소문자 · 숫자 · 하이픈)</label>
+        <input type="text" id="nhs-target" data-target-id value="${esc(lk.targetId)}"
+          pattern="[a-z0-9-]+" ${resync ? 'readonly' : ''}>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+          <button class="btn primary" data-run-import>${resync ? '재동기화 실행' : '가져오기 실행'}</button>
+        </div>
+        <ol class="progress-log" data-log></ol>
+      </div>`;
+  };
+
+  // ----- 렌더 + 이벤트 바인딩 -----
+  const draw = () => {
+    app.innerHTML = `${crumb}
+      <div class="section-head" style="margin-top:0"><h2>now-here-survey 연동</h2></div>
+      ${stepsHtml()}
+      ${connectHtml()}
+      ${surveysHtml()}
+      ${sessionsHtml()}
+      ${previewHtml()}
+      ${importHtml()}`;
+    core.renderModeBanner(app);
+    bind();
+  };
+
+  const bind = () => {
+    app.querySelector('[data-connect-form]')?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const btn = app.querySelector('[data-connect-btn]');
+      const err = app.querySelector('[data-connect-err]');
+      const email = app.querySelector('[data-email]').value.trim();
+      const password = app.querySelector('[data-password]').value;
+      err.textContent = '';
+      if (!email || !password) { err.textContent = '이메일과 비밀번호를 모두 입력하세요.'; return; }
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = '연결 중…';
+      try {
+        await connectSource(email, password);
+        lk.surveys = null; lk.surveysErr = '';
+        draw();
+        loadSurveys();
+      } catch (e) {
+        err.textContent = e.message;   // 원문 그대로 (원인 파악에 필요)
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+
+    app.querySelector('[data-disconnect]')?.addEventListener('click', () => {
+      disconnectSource();
+      lk.surveys = null; lk.surveysErr = '';
+      lk.survey = null; lk.sessions = null; lk.sessionsErr = '';
+      lk.session = null; lk.preview = null; lk.previewErr = '';
+      draw();
+    });
+
+    app.querySelector('[data-reload-surveys]')?.addEventListener('click', () => {
+      lk.surveys = null; lk.surveysErr = ''; draw(); loadSurveys();
+    });
+    app.querySelector('[data-reload-sessions]')?.addEventListener('click', () => {
+      lk.sessions = null; lk.sessionsErr = ''; draw(); loadSessions();
+    });
+    app.querySelector('[data-reload-preview]')?.addEventListener('click', () => {
+      lk.preview = null; lk.previewErr = ''; draw(); loadPreview();
+    });
+
+    app.querySelectorAll('[data-pick-survey]').forEach((b) => b.addEventListener('click', () => {
+      const s = (lk.surveys || []).find((x) => x.id === b.dataset.pickSurvey);
+      if (!s || (lk.survey && lk.survey.id === s.id)) return;
+      lk.survey = s;
+      lk.sessions = null; lk.sessionsErr = '';
+      lk.session = null; lk.preview = null; lk.previewErr = '';
+      draw();
+      loadSessions();
+    }));
+
+    app.querySelectorAll('[data-pick-session]').forEach((b) => b.addEventListener('click', () => {
+      const s = (lk.sessions || []).find((x) => x.id === b.dataset.pickSession);
+      if (!s || (lk.session && lk.session.id === s.id)) return;
+      lk.session = s;
+      lk.preview = null; lk.previewErr = ''; lk.dims = {};
+      draw();
+      loadPreview();
+    }));
+
+    app.querySelectorAll('.dim-col select[data-qid]').forEach((sel) => {
+      sel.addEventListener('change', () => { lk.dims[sel.dataset.qid] = sel.value; });
+    });
+
+    app.querySelector('[data-run-import]')?.addEventListener('click', runImport);
+  };
+
+  // ----- 로더 (모두 try/catch — 실패해도 화면은 살아 있어야 한다) -----
+  async function loadSurveys() {
+    try {
+      lk.surveys = await listSourceSurveys();
+      if (wantSurvey && !lk.survey) {
+        const s = lk.surveys.find((x) => x.id === wantSurvey);
+        if (s) { lk.survey = s; draw(); await loadSessions(); return; }
+      }
+    } catch (e) {
+      lk.surveys = []; lk.surveysErr = e.message;
+    }
+    draw();
+  }
+
+  async function loadSessions() {
+    if (!lk.survey) return;
+    const forSurvey = lk.survey.id;
+    try {
+      const rows = await listSourceSessions(forSurvey);
+      if (lk.survey?.id !== forSurvey) return;  // 그새 다른 설문을 골랐다
+      lk.sessions = rows;
+      if (wantSession && !lk.session) {
+        const s = rows.find((x) => x.id === wantSession);
+        if (s) { lk.session = s; draw(); await loadPreview(); return; }
+      }
+    } catch (e) {
+      if (lk.survey?.id !== forSurvey) return;  // 그새 다른 설문을 골랐다 — 그쪽 화면을 덮지 않는다
+      lk.sessions = []; lk.sessionsErr = e.message;
+    }
+    draw();
+  }
+
+  async function loadPreview() {
+    if (!lk.survey || !lk.session) return;
+    const survey = lk.survey, session = lk.session;
+    try {
+      const [{ pages, slides }, participants, responses] = await Promise.all([
+        getSourceStructure(survey.id),
+        listSourceParticipants(session.id),
+        listSourceResponses(session.id),
+      ]);
+      if (lk.session?.id !== session.id) return;  // 그새 다른 회차를 골랐다
+      const conv = convertSession({ survey, session, pages, slides, participants, responses });
+      lk.preview = conv;
+      lk.rawResponseCount = responses.length;
+
+      // 같은 회차를 이미 가져왔는지 확인 → 재동기화 모드
+      lk.existing = null;
+      try {
+        const mine = await core.listSurveys(pid);
+        if (lk.session?.id !== session.id) return;  // 목록을 읽는 사이 다른 회차를 골랐다
+        lk.existing = mine.find((sv) => sv.externalRef && sv.externalRef.sessionId === session.id) || null;
+      } catch { /* 목록 조회 실패는 치명적이지 않다 — 새로 만들기로 진행 */ }
+
+      // 재동기화라면 기존 서베이의 태깅을 먼저 되살린다 (문항 id 기준).
+      // saveSurvey는 merge지만 배열은 통째로 교체되므로, 여기서 채우지 않으면 기존 태깅이 조용히 사라진다.
+      lk.dims = {};
+      for (const q of (lk.existing?.questions || [])) {
+        if (q && q.id && q.personaDimension) lk.dims[q.id] = q.personaDimension;
+      }
+      // 의견에서 생성된 문항은 페인포인트가 기본값 — 페르소나의 핵심 재료라서.
+      // 단 위에서 되살린 기존 태깅은 덮어쓰지 않는다.
+      conv.definition.questions.forEach((q) => {
+        if (q.id.endsWith('-c') && !lk.dims[q.id]) lk.dims[q.id] = 'painPoints';
+      });
+
+      // 회차 이름이 한글이면 슬러그가 비거나 너무 짧다("3월 A조" → "3-a"). 그럴 땐 회차 id 앞자리를 쓴다.
+      const slug = slugifyId(session.name);
+      const fallback = slugifyId(String(session.id).slice(0, 8)) || 'session';
+      lk.targetId = lk.existing ? lk.existing.id
+        : `nhs-${slug.replace(/-/g, '').length >= 3 ? slug : fallback}`;
+    } catch (e) {
+      if (lk.session?.id !== session.id) return;  // 그새 다른 회차를 골랐다 — 그쪽 화면을 덮지 않는다
+      lk.preview = null; lk.previewErr = e.message;
+    }
+    draw();
+  }
+
+  // ----- 실행 -----
+  async function runImport(ev) {
+    if (!lk.preview || !lk.session) return;
+    const btn = ev.target;
+    const idInput = app.querySelector('[data-target-id]');
+    const id = (idInput?.value || '').trim();
+    if (!/^[a-z0-9-]{2,40}$/.test(id)) { alert('서베이 ID는 소문자·숫자·하이픈 2~40자여야 합니다.'); return; }
+
+    const log = app.querySelector('[data-log]');
+    log.innerHTML = '';
+    const say = (msg) => { const li = document.createElement('li'); li.textContent = msg; log.appendChild(li); };
+    btn.disabled = true;
+
+    const questions = lk.preview.definition.questions.map((q) => (
+      lk.dims[q.id] ? { ...q, personaDimension: lk.dims[q.id] } : q));
+    const rows = lk.preview.responses;
+
+    try {
+      const existing = await core.getSurvey(pid, id);
+      if (existing && existing.externalRef?.sessionId !== lk.session.id) {
+        throw new Error(`서베이 id '${id}'는 이미 다른 서베이가 쓰고 있습니다. 다른 id를 입력하세요.`);
+      }
+      // responseCount는 넣지 않는다 — importResponses(replace)가 실제 건수로 맞춘다.
+      const def = {
+        id, projectId: pid,
+        title: lk.preview.definition.title,
+        description: lk.preview.definition.description,
+        status: 'imported',
+        source: 'now-here-survey',
+        auth: 'anonymous',
+        externalRef: lk.preview.definition.externalRef,
+        createdAt: existing?.createdAt || today(),
+        questions,
+      };
+      if (existing) {
+        say('기존 서베이를 찾았습니다 — 재동기화합니다.');
+        say('서베이 정의 갱신 중…');
+        await core.saveSurvey(pid, def);
+      } else {
+        say('서베이 정의 저장 중…');
+        await core.createSurvey(pid, def);
+      }
+      say(`응답 ${rows.length}건 저장 중… (기존 연동 응답은 교체됩니다)`);
+      const res = await core.importResponses(pid, id, rows, { source: 'now-here-survey', replace: true });
+      say(`완료 — 문항 ${questions.length}개, 응답 ${res?.added ?? rows.length}건 저장`
+        + `${res?.removed ? ` (기존 연동 응답 ${res.removed}건 교체)` : ''}.`);
+      say('원본 설문(now-here-survey)은 변경되지 않았습니다.');
+      const li = document.createElement('li');
+      li.innerHTML = `<a href="?p=${esc(pid)}&s=${esc(id)}">→ 결과 보러 가기</a>`;
+      log.appendChild(li);
+    } catch (e) {
+      say(`실패: ${e.message}`);
+      btn.disabled = false;
+    }
+  }
+
+  draw();
+  if (sourceState.connected) await loadSurveys();
 }

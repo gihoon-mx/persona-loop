@@ -36,6 +36,9 @@ gh auth status
 - `firestore.rules`를 고쳤다면 **콘솔에 붙여넣고 게시해야** 적용된다. 커밋만으로는 효과가 없다.
   게시 후 검증: `bash tools/check-rules.sh`
 - 비밀값(서비스 계정 키·API 키)은 repo에 두지 않는다. GitHub Actions Secrets만 사용한다.
+- **now-here-survey(외부 설문 시스템)는 읽기 전용으로만 접근한다.** 현장에서 운영 중인 서비스이므로 `packages/core/survey-source.js`에
+  쓰기 코드(POST/PATCH/PUT/DELETE, Supabase RPC, Realtime 구독)를 추가하지 않는다 — 허용되는 POST는 인증 토큰 발급·갱신뿐이다.
+  연동 계정 토큰은 `sessionStorage`에만 두고, 참가자 실명·로그인 아이디·passcode는 가져오지 않는다 (`docs/SURVEY-INTEGRATION.md`).
 
 ## 3. 비용 고지
 

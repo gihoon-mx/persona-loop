@@ -33,12 +33,24 @@
 .num-summary { display:flex; gap:18px; font-size:.9rem; flex-wrap:wrap; }
 .num-summary b { font-size:1.1rem; }
 .q-missing { outline:2px solid var(--danger); }
+
+/* now-here-survey 연동 뷰 */
+input[type=password] { width:100%; font:inherit; font-size:.92rem; padding:8px 10px;
+  border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--fg); }
+.link-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+button.card.pick { width:100%; text-align:left; font:inherit; cursor:pointer; }
+button.card.pick:hover { border-color:var(--accent); }
+button.card.pick[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft); }
+/* 페르소나 차원 열 — 연동의 부가가치라 눈에 띄게 둔다 */
+th.dim-col, td.dim-col { background:var(--accent-soft); }
+th.dim-col { color:var(--accent); }
+td.dim-col select { min-width:130px; }
 </style>
 </head>
 <body>
 <header class="topbar"></header>
 <main id="app"><p class="empty">불러오는 중…</p></main>
-<footer class="site">Persona Loop <span data-app-ver>v0.3.0</span> · Survey 모듈 · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
+<footer class="site">Persona Loop <span data-app-ver>v0.4.0</span> · Survey 모듈 · 리뷰는 AI 생성물로 항상 표시됩니다</footer>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

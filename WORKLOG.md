@@ -2,6 +2,23 @@
 
 멀티 세션 작업의 단일 상태 소스. 세션 시작 시 먼저 읽고, 작업 후 갱신해 커밋에 포함할 것.
 
+## 2026-07-25 — v0.4.0: now-here-survey 연동 (M10)
+
+이미 현장에서 운영 중인 설문 서비스 [now-here-survey](https://gihoon-mx.github.io/now-here-survey/)(Supabase)의 응답을 페르소나의 재료로 가져온다. Persona Loop는 설문을 새로 만들지 않는다 — 설문 설계·현장 진행은 원본이, 페르소나 차원 태깅·페르소나 생성·리뷰는 Persona Loop가 맡는다.
+
+- **철저히 읽기 전용**: `packages/core/survey-source.js`에서 데이터에 닿는 경로는 GET만 보내는 `get()` 하나뿐. POST는 인증 토큰 발급·갱신 두 곳뿐이고 PATCH·DELETE·RPC·Realtime 구독은 없다. **원본의 데이터도 진행 상태도 바뀌지 않는다** (운영 중인 서비스이므로 협상 대상이 아님)
+- **인증**: 원본 RLS가 전부 `to authenticated`라 anon 키만으로는 아무것도 안 읽힌다 → 설문 관리자 계정 로그인 필수. `connectSource()`가 로그인 직후 관리자 여부를 확인하고 아니면 즉시 끊는다. 토큰은 `sessionStorage`에만 (탭 닫으면 소멸 — 현장 공유 PC 고려)
+- **구조 변환**(`convertSession()`): 페이지 순서 → 페이지 내 순서로 문항을 펴서 `q1`,`q2`… 재부여. `choice`→`single`/`multi`, `ox`→`single`(O·X), `text`→`open`, `info`는 제외. 문항별 자유 의견(`comment`)은 페르소나의 핵심 재료라 `<qid>-c` 주관식 문항으로 따로 담는다(의견이 달린 문항만)
+- **익명화**: 참가자 실명·표시 이름·로그인 아이디·passcode는 가져오지 않는다. 회차 안에서만 유효한 `P1`, `P2` … 라벨만 저장(`respondentLabel`)
+- **재동기화**: `importResponses(..., {source:'now-here-survey', replace:true})` — 같은 출처 응답을 지우고 다시 넣어 중복 누적 방지. 다른 출처(`live`·`import`)는 건드리지 않음. `responseCount`는 덮어쓰기로 갱신
+- **personaDimension 태깅**: 연동 직후 각 문항에 페르소나 차원을 지정하는 것이 필수 단계 — 이 태깅이 페르소나 생성의 근거 연결 기준이 된다
+- 스키마: `source`에 `now-here-survey` 추가, `externalRef{surveyId,sessionId,syncedAt}` 신설(재동기화 대상 식별)
+- 문서: [docs/SURVEY-INTEGRATION.md](docs/SURVEY-INTEGRATION.md) 신규, ARCHITECTURE.md §8 + 구성 다이어그램, MODULES.md M10, CLAUDE.md 보안 원칙
+
+### 다음 할 일
+- [ ] **사용자**: 실제 연동 테스트 — 설문 관리자 계정으로 로그인 → 설문·회차 선택 → 회차 동기화 → 문항에 `personaDimension` 태깅까지 한 번 끝까지 돌려보기 (종료된 회차로 먼저 시도할 것)
+- [ ] **사용자**: 연동 전에 원본의 자유 의견 본문에 실명·소속 같은 개인정보가 섞여 있지 않은지 확인 (발견 시 원본에서 수정 후 재동기화)
+
 ## 2026-07-25 — v0.3.0: 비공개 기본 (private by default)
 - **전 화면 로그인 게이트**: 모든 앱이 `core.requireAdmin(container)`를 통과해야 렌더된다. 비로그인 → 로그인 안내, allowlist 밖 → "접근 권한이 없습니다". 유일한 예외는 공개 응답 폼
 - **Firestore 단일 저장소로 이전**: `data/projects/` 삭제, 정적 JSON 폴백 경로 제거. repo에 남는 데이터는 가상 시드 `data/seed/sample/` 뿐 (설정 화면의 "샘플 데이터 불러오기"로 Firestore에 적재)

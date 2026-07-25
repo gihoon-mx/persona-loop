@@ -395,6 +395,25 @@ export async function seedSampleProject() {
       await writeWithTimeout(fs.setDoc(fs.doc(db, 'projects', pid, kind, id), data));
     }
   }
+
+  // 응답 원본은 서베이 하위 컬렉션이라 위 루프로 표현되지 않는다. 응답이 없으면
+  // 응답자별 보기(M03)가 빈 화면이 되고 페르소나의 근거를 되짚을 수 없으므로 함께 적재한다.
+  // 문서 id가 파일에 고정돼 있어 다시 적재해도 중복되지 않고 덮어써진다.
+  for (const [sid, file] of Object.entries(manifest.responses?.bySurvey || {})) {
+    const doc = await fetchStaticJson(`data/seed/sample/responses/${file}`);
+    if (!doc?.responses?.length) continue;
+    const col = fs.collection(db, 'projects', pid, 'surveys', sid, 'responses');
+    for (let i = 0; i < doc.responses.length; i += 400) {
+      const batch = fs.writeBatch(db);
+      doc.responses.slice(i, i + 400).forEach(({ id, ...data }) => {
+        batch.set(id ? fs.doc(col, id) : fs.doc(col), data);
+      });
+      await writeWithTimeout(batch.commit());
+    }
+    // 응답 문서 수와 responseCount가 어긋나면 결과 화면이 거짓말을 한다 — 실제 건수로 맞춘다.
+    await writeWithTimeout(fs.setDoc(fs.doc(db, 'projects', pid, 'surveys', sid),
+      { responseCount: doc.responses.length }, { merge: true }));
+  }
   return pid;
 }
 

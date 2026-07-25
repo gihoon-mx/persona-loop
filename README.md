@@ -15,6 +15,13 @@ apps/       모듈별 웹앱 (Pages로 서빙) — survey / persona / review
 agents/     AI Agent 프롬프트·실행 스크립트 (GitHub Actions에서 실행)
 packages/   공유 스키마 + 공통 코어 (core.js = 인증·권한 게이트·데이터 API)
 data/seed/  가상 샘플 시드 — 관리자가 설정 화면에서 Firestore에 적재하는 데모 데이터
+tools/      검증 스크립트 (verify-personas.mjs = 페르소나 근거 대조, check-rules.sh = 보안 규칙 확인)
+```
+
+페르소나를 저장하기 전에는 근거 대조를 통과시킨다 (외부 의존성 없음):
+
+```bash
+node tools/verify-personas.mjs
 ```
 
 핵심 구성: **Pages = UI, Actions = Agent 런타임, Firestore = 유일한 데이터 저장소, Firebase Auth + 보안 규칙 = 접근 통제**

@@ -15,6 +15,11 @@ import {
   listSourceSurveys, listSourceSessions, getSourceStructure,
   listSourceParticipants, listSourceResponses, convertSession,
 } from '../../packages/core/survey-source.js';
+// 응답자 프로필 로직은 화면 없이도 검증할 수 있도록 코어에 둔다 (tools/verify-personas.mjs가 같은 함수를 쓴다).
+import {
+  natCompare, toDateOrNull,
+  buildRespondents, findRespondent, buildAnswerProfile,
+} from '../../packages/core/respondent-profile.js';
 
 const { esc, qsParam, state } = core;
 const app = document.getElementById('app');
@@ -575,127 +580,11 @@ const RESPONDENT_SORTS = [
   ['label', '라벨순'],
 ];
 
-function isBlank(v) {
-  if (v === undefined || v === null) return true;
-  if (Array.isArray(v)) return v.length === 0;
-  return String(v).trim() === '';
-}
-
-/** 'P2'가 'P10'보다 앞에 오도록 숫자를 숫자로 비교한다. */
-function natCompare(a, b) {
-  return String(a).localeCompare(String(b), 'ko', { numeric: true, sensitivity: 'base' });
-}
-
-/** submittedAt은 Firestore Timestamp · ISO 문자열 · null이 모두 올 수 있다. */
-function toDateOrNull(v) {
-  if (!v) return null;
-  if (typeof v === 'object' && typeof v.toDate === 'function') {
-    try { return v.toDate(); } catch { return null; }
-  }
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 function fmtDateTime(v) {
   const d = toDateOrNull(v);
   if (!d) return '';
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-/** 연동 서베이는 항목별 자유 의견을 `<qid>-c` 주관식 문항으로 따로 담는다 (survey-source.js). */
-function commentQidOf(qid) { return `${qid}-c`; }
-
-/**
- * 응답자 1명의 답변을 문항 순서대로 편다 (answerProfile.answers의 원형).
- * - `<qid>-c` 의견 문항은 별도 행이 아니라 원 문항의 comment로 접는다.
- *   단 안내 페이지처럼 원 문항이 없는 의견은 그대로 한 행이 된다 — 그 의견도 사람의 목소리다.
- * - 무응답 문항도 행으로 남긴다 (answer: null). 무엇을 답하지 않았는지도 정보다.
- */
-function buildProfileRows(questions, answers) {
-  const byId = new Map(questions.map((q) => [q.id, q]));
-  const rows = [];
-  for (const q of questions) {
-    if (q.id.endsWith('-c') && byId.has(q.id.slice(0, -2))) continue;  // 원 문항에 접힌다
-    const cq = byId.get(commentQidOf(q.id));
-    const rawA = answers ? answers[q.id] : undefined;
-    const rawC = cq && answers ? answers[cq.id] : undefined;
-    rows.push({
-      question: q,
-      answer: isBlank(rawA) ? null : rawA,
-      comment: isBlank(rawC) ? '' : String(rawC).trim(),
-    });
-  }
-  return rows;
-}
-
-/** 응답 문서 1건 → 화면·내보내기에 쓰는 응답자 프로필. */
-function summarizeRespondent(questions, doc) {
-  const answers = doc.answers || {};
-  const rows = buildProfileRows(questions, answers);
-  const answered = rows.filter((r) => r.answer !== null).length;
-  // 자유 의견 = 주관식 문항에 실제로 남긴 글. 연동 서베이의 `-c` 의견도 주관식이라 여기 포함된다.
-  const texts = questions
-    .filter((q) => q.type === 'open')
-    .map((q) => answers[q.id])
-    .filter((v) => !isBlank(v))
-    .map((v) => String(v).trim());
-  const preview = texts.reduce((longest, t) => (t.length > longest.length ? t : longest), '');
-  // 정의에 없는 문항 키 — 문항이 나중에 바뀐 경우를 조용히 숨기지 않는다.
-  const known = new Set(questions.map((q) => q.id));
-  const orphanKeys = Object.keys(answers).filter((k) => !known.has(k) && !isBlank(answers[k]));
-  return {
-    rows, answered, total: rows.length,
-    ratio: rows.length ? answered / rows.length : 0,
-    commentCount: texts.length, preview, orphanKeys,
-  };
-}
-
-/** 응답 배열 → 결정적 순서의 응답자 목록. 순번('#3')이 새로고침마다 흔들리지 않게 정렬을 고정한다. */
-function buildRespondents(questions, responses) {
-  const ordered = [...responses].sort((a, b) => {
-    const la = a.respondentLabel || '', lb = b.respondentLabel || '';
-    if (la && lb) return natCompare(la, lb);
-    if (la !== lb) return la ? -1 : 1;                       // 라벨이 있는 응답을 앞에
-    const ta = toDateOrNull(a.submittedAt), tb = toDateOrNull(b.submittedAt);
-    if (ta && tb && ta.getTime() !== tb.getTime()) return ta - tb;
-    if (!!ta !== !!tb) return ta ? -1 : 1;
-    return String(a.id).localeCompare(String(b.id));
-  });
-  return ordered.map((doc, i) => ({
-    doc,
-    index: i + 1,
-    label: doc.respondentLabel || `응답 #${i + 1}`,
-    key: doc.respondentLabel || `#${i + 1}`,   // URL의 &r= 값
-    ...summarizeRespondent(questions, doc),
-  }));
-}
-
-function findRespondent(list, key) {
-  if (!key) return null;
-  const raw = String(key);
-  const n = Number(raw.replace(/^#/, ''));
-  return list.find((r) => r.key === raw)
-    || (Number.isFinite(n) ? list.find((r) => r.index === n) : null)
-    || list.find((r) => r.doc.id === raw)
-    || null;
-}
-
-/** persona.schema.json의 answerProfile 형태 — M05 이전에는 이 파일이 에이전트의 입력이 된다. */
-function buildAnswerProfile(sid, r) {
-  return {
-    surveyId: sid,
-    respondentLabel: r.label,
-    answers: r.rows.map((row) => {
-      const out = {
-        questionId: row.question.id,
-        questionText: row.question.text || '',
-        answer: row.answer,            // 무응답은 null로 남긴다 (빠뜨리지 않는다)
-      };
-      if (row.comment) out.comment = row.comment;
-      return out;
-    }),
-  };
 }
 
 function profileFileSlug(r) {

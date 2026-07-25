@@ -74,6 +74,7 @@ repo에 커밋되는 데이터: data/seed/sample/ (가상 샘플) 뿐 — 실데
 ### 2. 데이터 — Firestore가 단일 저장소, repo는 코드 + 샘플 시드
 - 프로젝트·서베이 정의·응답 원본·페르소나·리뷰·세션 로그가 **전부 Firestore에** 있다. `packages/core/core.js`는 Firestore에서만 읽고 쓴다 — 정적 JSON 폴백 경로는 없다.
 - repo의 `data/seed/sample/`은 **가상의 데모 데이터**다. 관리자가 설정 화면에서 버튼 한 번으로 Firestore에 적재(`seedSampleProject()`)해 전체 흐름을 시연하고, 언제든 지울 수 있다.
+  응답 원본 35건(`responses/sv-sample.json`)도 함께 들어 있다 — 응답이 없으면 응답자별 보기가 빈 화면이 되고 페르소나의 근거를 되짚을 수 없어 v0.5의 전제가 시연되지 않기 때문이다. 이 응답은 서베이 문서의 `aggregates`를 정확히 재현하며, 그 일치를 `tools/verify-personas.mjs`가 매번 검사한다.
 - 스키마는 `packages/core/schemas/` 의 JSON Schema가 여전히 단일 기준.
 
 **이 전환으로 잃은 것 (정직하게 기록)**
@@ -121,6 +122,8 @@ now-here가 직접 만든 앱이라는 점을 최대한 활용한다:
 - **`confidence`** — 무응답이 많거나 자유 의견이 없으면 낮아진다. 낮다고 버리지 않고 **낮다고 표시**한다. 추론으로 메운 부분은 `gaps`에 남긴다.
 
 **근거에 `respondentLabel`이 필수인 이유.** 집계 인용("71%가 X")에는 "누구"가 없어서 원본으로 되짚을 수도, 반증할 수도 없다. 근거는 언제나 **특정 응답자의 특정 문항의 답**이어야 하고(`{surveyId, questionId, respondentLabel, quote}`), 그래야 서베이 결과 화면의 응답자별 보기에서 P7의 q3을 직접 열어 확인할 수 있다. 라벨은 회차 안에서만 유효한 익명 식별자이며 실명·아이디는 애초에 수집하지 않는다(§8).
+
+**검증은 기계가 먼저 한다.** 페르소나가 "개인 응답에서 나왔다"는 주장은 확인 가능한 주장이므로, `tools/verify-personas.mjs`가 근거의 `questionId`·`respondentLabel` 실존 여부, 인용과 실제 답변의 일치(고르지 않은 선택지를 인용했는지, 리커트 점수가 맞는지), `answerProfile` ↔ 응답 원본 일치, 응답률·집계 재현을 검사한다. 화면과 검증 도구가 **같은 함수**(`packages/core/respondent-profile.js`)를 쓰므로 "화면에서는 되는데 검증에서는 다른" 상태가 생기지 않는다. 다만 산문으로 적은 대표성 주장("35명 중 12명")은 총원과 상한만 기계 검사되므로 사람이 함께 읽어야 한다 — v0.5.0의 오류 두 건이 정확히 여기서 나왔다.
 
 **버전 관리**는 git 히스토리가 아니라 **문서의 `version` + `revisionNote`**로 한다(§2). 서베이가 추가되면 페르소나를 갱신하고 version을 올리며, 중심 응답자가 교체됐다면 그 사실을 `revisionNote`에 남긴다.
 

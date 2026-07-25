@@ -1,0 +1,581 @@
+{
+  "comment": "가상의 샘플 응답 원본 35건. surveys/sv-sample.json의 aggregates를 정확히 재현한다(tools/verify-personas.mjs가 매번 대조). 실제 응답·개인정보 없음 — 라벨(P1…)은 회차 안에서만 유효한 익명 식별자이며, 라벨이 없는 4건은 공개 폼(source: live)으로 들어온 응답을 나타낸다.",
+  "surveyId": "sv-sample",
+  "responses": [
+    {
+      "id": "r01",
+      "respondentLabel": "P1",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T09:00:00+09:00",
+      "answers": {
+        "q1": "50대 이상",
+        "q2": 1,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r02",
+      "respondentLabel": "P2",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T10:07:00+09:00",
+      "answers": {
+        "q1": "50대 이상",
+        "q2": 2,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 2
+      }
+    },
+    {
+      "id": "r03",
+      "respondentLabel": "P3",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T11:14:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 2,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 4,
+        "q4-c": "버튼이 여러 개 뜨면 어느 걸 눌러야 할지 몰라서 그냥 닫습니다.",
+        "q5": "걷는 중에 한 손으로 조작하기 어려움"
+      }
+    },
+    {
+      "id": "r04",
+      "respondentLabel": "P4",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T12:21:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 3,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r05",
+      "respondentLabel": "P5",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T13:28:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 3,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r06",
+      "respondentLabel": "P6",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T14:35:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 4,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 2
+      }
+    },
+    {
+      "id": "r07",
+      "respondentLabel": "P8",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T15:42:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 4,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r08",
+      "respondentLabel": "P9",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T16:49:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 3,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 2
+      }
+    },
+    {
+      "id": "r09",
+      "respondentLabel": "P10",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T17:56:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 4,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 1
+      }
+    },
+    {
+      "id": "r10",
+      "respondentLabel": "P11",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T18:03:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 2,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 4,
+        "q5": "위치 권한 요청이 무섭게 느껴질 때가 있다"
+      }
+    },
+    {
+      "id": "r11",
+      "respondentLabel": "P19",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T19:10:00+09:00",
+      "answers": {
+        "q1": "50대 이상",
+        "q2": 1,
+        "q3": [
+          "길찾기"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r12",
+      "respondentLabel": "P7",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-20T20:17:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 5,
+        "q3": [
+          "주변 장소 검색",
+          "동네 경계 확인",
+          "저장/북마크"
+        ],
+        "q3-c": "저장은 계속 해두는데 목록이 길어져서 결국 다시 안 보게 돼요.",
+        "q4": 5,
+        "q5": "지도에 정보가 너무 많아서 정작 내가 찾는 건 안 보여요"
+      }
+    },
+    {
+      "id": "r13",
+      "respondentLabel": "P30",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T09:24:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 5,
+        "q3": [
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q3-c": "저장해둔 곳 목록이 정리가 안 돼서 결국 새로 검색해요.",
+        "q4": 4
+      }
+    },
+    {
+      "id": "r14",
+      "respondentLabel": null,
+      "source": "live",
+      "respondent": null,
+      "submittedAt": "2026-07-21T10:31:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 2,
+        "q3": [
+          "주변 장소 검색"
+        ],
+        "q4": 2
+      }
+    },
+    {
+      "id": "r15",
+      "respondentLabel": "P32",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T11:38:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 3,
+        "q3": [
+          "주변 장소 검색",
+          "동네 경계 확인"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r16",
+      "respondentLabel": "P12",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T12:45:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 5,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "동네 경계 확인",
+          "저장/북마크"
+        ],
+        "q4": 5
+      }
+    },
+    {
+      "id": "r17",
+      "respondentLabel": "P13",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T13:52:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "동네 경계 확인",
+          "저장/북마크"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r18",
+      "respondentLabel": "P14",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T14:59:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 5,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "동네 경계 확인",
+          "저장/북마크"
+        ],
+        "q4": 5
+      }
+    },
+    {
+      "id": "r19",
+      "respondentLabel": "P15",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T15:06:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 5,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "동네 경계 확인",
+          "저장/북마크"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r20",
+      "respondentLabel": "P16",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T16:13:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 3,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r21",
+      "respondentLabel": "P17",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T17:20:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r22",
+      "respondentLabel": "P18",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T18:27:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 2
+      }
+    },
+    {
+      "id": "r23",
+      "respondentLabel": "P20",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T19:34:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r24",
+      "respondentLabel": "P21",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-21T20:41:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 5,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r25",
+      "respondentLabel": "P23",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T09:48:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 2
+      }
+    },
+    {
+      "id": "r26",
+      "respondentLabel": "P24",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T10:55:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 1
+      }
+    },
+    {
+      "id": "r27",
+      "respondentLabel": "P25",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T11:02:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 5,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "저장/북마크"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r28",
+      "respondentLabel": "P22",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T12:09:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 3,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "동네 경계 확인"
+        ],
+        "q4": 5,
+        "q5": "우리 동네가 어디까지인지 경계가 궁금했는데 보여주는 앱이 없었음"
+      }
+    },
+    {
+      "id": "r29",
+      "respondentLabel": "P26",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T13:16:00+09:00",
+      "answers": {
+        "q1": "40대",
+        "q2": 3,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "동네 경계 확인"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r30",
+      "respondentLabel": "P27",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T14:23:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색",
+          "동네 경계 확인"
+        ],
+        "q4": 1
+      }
+    },
+    {
+      "id": "r31",
+      "respondentLabel": "P28",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T15:30:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 2,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색"
+        ],
+        "q4": 5
+      }
+    },
+    {
+      "id": "r32",
+      "respondentLabel": "P29",
+      "source": "import",
+      "respondent": null,
+      "submittedAt": "2026-07-22T16:37:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r33",
+      "respondentLabel": null,
+      "source": "live",
+      "respondent": null,
+      "submittedAt": "2026-07-22T17:44:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 3,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색"
+        ],
+        "q4": 3
+      }
+    },
+    {
+      "id": "r34",
+      "respondentLabel": null,
+      "source": "live",
+      "respondent": null,
+      "submittedAt": "2026-07-22T18:51:00+09:00",
+      "answers": {
+        "q1": "20대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색"
+        ],
+        "q4": 4
+      }
+    },
+    {
+      "id": "r35",
+      "respondentLabel": null,
+      "source": "live",
+      "respondent": null,
+      "submittedAt": "2026-07-22T19:58:00+09:00",
+      "answers": {
+        "q1": "30대",
+        "q2": 4,
+        "q3": [
+          "길찾기",
+          "주변 장소 검색"
+        ],
+        "q4": 3
+      }
+    }
+  ]
+}

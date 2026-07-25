@@ -23,5 +23,11 @@
     "sessions": [
       "ss-minseo-01.json"
     ]
+  },
+  "responses": {
+    "comment": "서베이 하위 컬렉션(surveys/{sid}/responses)이라 collections와 구조가 달라 따로 둔다. 키 = 서베이 id, 값 = responses/ 아래 파일명.",
+    "bySurvey": {
+      "sv-sample": "sv-sample.json"
+    }
   }
 }

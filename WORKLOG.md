@@ -2,6 +2,39 @@
 
 멀티 세션 작업의 단일 상태 소스. 세션 시작 시 먼저 읽고, 작업 후 갱신해 커밋에 포함할 것.
 
+## 2026-07-25 — AI 제공자 전환 결정: Claude API → Gemini on Agent Platform
+
+**결정 근거와 상세는 [docs/AI-PROVIDER.md](docs/AI-PROVIDER.md)가 단일 기준이다.** 요약:
+
+- 사용자가 GCP 체험 크레딧을 보유(만료 **2026-09-30**). 이 크레딧을 AI 비용에 쓰려면 경로가 하나뿐이다 —
+  Google 공식 문서가 **"생성형 AI 파트너 모델(MaaS)"과 "AI Studio의 Gemini API"를 크레딧 사용 대상에서 명시적으로 제외**한다.
+  Claude는 Agent Platform에서 partner model로 분류되므로 **Vertex로 우회 호출해도 크레딧이 적용되지 않는다.**
+  크레딧이 확실히 먹는 것은 **Agent Platform의 Gemini**뿐이다.
+- **Vertex AI는 사라진 게 아니라 "Gemini Enterprise Agent Platform"으로 이름이 바뀌었다.**
+  엔드포인트 `aiplatform.googleapis.com`은 그대로 살아 있다(2026-07-25 확인). 콘솔에서는 "Agent Platform"으로 검색할 것.
+- SDK는 `google-genai` 하나. **`enterprise=True`가 곧 과금 경계다** — 켜면 Agent Platform(크레딧 적용), 끄면 AI Studio(무료 등급).
+  예전 예제의 `vertexai=True`는 현재 `enterprise=True`로 바뀌었다.
+- 모델: demo-reviewer = **Gemini 2.5 Flash**($0.30/$2.50 per 1M, 이미지 입력도 같은 단가), persona-builder = **배치 모드**(50% 할인).
+  `location="global"` 권장(2026-07-01부터 non-global +10%).
+- 문서 정리 완료: CLAUDE.md·ARCHITECTURE.md·MODULES.md·README.md·두 에이전트 README의 Claude 전제를 Gemini 기준으로 교체.
+
+### 다음 할 일
+- [ ] **사용자(최우선)**: GCP 프로젝트에서 Agent Platform API 활성화(`gcloud services enable aiplatform.googleapis.com`) 후
+      **Gemini 쿼터가 0이 아닌지 확인**. 신규·업그레이드 프로젝트에서 쿼터가 0으로 잠기는 사례가 보고돼 있고,
+      풀려면 지원 티켓이 필요해 수일~수십일이 걸릴 수 있다. 크레딧 만료가 가까워 일정상 가장 큰 위험이다.
+- [ ] **사용자**: 소액 호출 1회 후 결제 콘솔에서 **크레딧이 실제로 차감되는지 눈으로 확인** (문서 해석은 맞지만 돈이 걸린 일이다)
+- [ ] **사용자(선택)**: Firebase 프로젝트를 같은 결제 계정에 연결 — 크레딧 소진 효과는 거의 없지만
+      스크린샷 저장용 Cloud Storage의 Blaze 요건이 풀리고 실제 비용은 무료 등급 안이다
+
+### ⚠️ v0.5.0 검증 미완료 (인수인계 주의)
+v0.5.0 작업 중 교차 검증 에이전트 2개가 **API 529(서버 과부하)로 실패**해 끝까지 돌지 못했다.
+빌더 자체 검증(스키마 검증 스크립트·렌더 스모크)은 통과했으나, **독립 검증은 이뤄지지 않았다.**
+다음 세션에서 아래를 확인할 것:
+- 샘플 페르소나 2건의 모든 `evidence`에 `respondentLabel`이 있고 `questionId`가 `sv-sample.json`에 실존하는가
+- `behaviorModel` 각 항목이 실제 응답에서 도출 가능한가 (지어낸 항목이 없는가)
+- 응답자별 보기에서 `respondentLabel`이 없는 응답(CSV·공개 폼)·복수 선택·무응답이 제대로 렌더되는가
+- 내보낸 프로필 JSON이 `answerProfile` 스키마와 일치하는가
+
 ## 2026-07-25 — v0.5.0: 페르소나를 개인 응답 기반으로 전환
 
 **"페르소나는 문항별로 만드는 게 아니라, 각 응답자 개인이 문항에 어떻게 답했는지를 분석해서 만든다. 그래야 이 사람이 유사 서비스에서 어떻게 행동할지 대변할 수 있다."**
@@ -18,7 +51,7 @@ v0.4까지는 "35명 중 71%가 X" 같은 **집계**를 근거로 페르소나�
 - 문서: ARCHITECTURE.md §5 "페르소나 — 개인 응답 기반"으로 재작성, MODULES.md M03·M05·M06 갱신
 
 ### 다음 할 일
-- [ ] **M05 persona-builder 구현** — 사양은 `agents/persona-builder/README.md`에 확정돼 있다. 로컬 실행(서비스 계정 키 불필요) + 결과를 웹 화면에서 입력하는 경로부터 만들 것. Claude API 비용은 응답자 수에 비례하므로 실행 전 고지 필수
+- [ ] **M05 persona-builder 구현** — 사양은 `agents/persona-builder/README.md`에 확정돼 있다. 로컬 실행(서비스 계정 키 불필요) + 결과를 웹 화면에서 입력하는 경로부터 만들 것. 모델 비용은 응답자 수에 비례하므로 실행 전 고지 필수 (Gemini — docs/AI-PROVIDER.md)
 - [ ] **사용자**: 결과 화면에서 응답자별 보기 → JSON 내보내기를 한 번 돌려보고, 라벨·무응답 표기가 실제 데이터에서 제대로 나오는지 확인 (연동 회차는 P1·P2…, CSV 임포트는 "응답 #n")
 - [ ] 페르소나 뷰어에 응답 프로필과 페르소나를 좌우로 나란히 놓는 대조 뷰(넓은 화면) 검토
 
@@ -51,7 +84,7 @@ v0.4까지는 "35명 중 71%가 X" 같은 **집계**를 근거로 페르소나�
 ### 다음 할 일
 - [ ] **사용자**: Firebase 콘솔에서 `firestore.rules` v0.3 내용 **재게시** (커밋만으로는 적용되지 않는다 — 안 하면 예전 공개 읽기 규칙이 그대로 살아 있다)
 - [ ] **사용자**: now-here 서베이 원본(40문항 × 35명) CSV 확보 → 사이트에서 프로젝트 생성 + CSV 임포트
-- [ ] M04 서베이 코칭(문항 생성·personaDimension 커버리지 진단 — Claude API, 비용 고지 필요)
+- [ ] M04 서베이 코칭(문항 생성·personaDimension 커버리지 진단 — Gemini, 비용 고지 필요)
 - [ ] M05/M07 에이전트의 Firestore 쓰기 경로 — Firebase 서비스 계정(Admin SDK) 키를 Actions Secrets에 등록하고 Admin SDK로 쓰도록 구현 (ARCHITECTURE.md §7). 그 전까지는 로컬 실행 + 웹 입력
 
 ## 2026-07-25 — Phase 0: 스캐폴딩

@@ -6,7 +6,7 @@
 
 ## 흐름
 1. 페르소나 로드 → **`behaviorModel`을 행동 계획으로 변환** + 환경(viewport/네트워크/geolocation) 설정
-2. 데모를 `?agent=1`(agent bridge)로 열고, [스크린샷 → Claude가 페르소나로서 다음 행동 결정 → Playwright 실행] 루프
+2. 데모를 `?agent=1`(agent bridge)로 열고, [스크린샷 → 모델이 페르소나로서 다음 행동 결정 → Playwright 실행] 루프
 3. 스텝별 [스크린샷 + 행동 + 속마음] 기록 → Firestore `projects/<pid>/sessions/{id}` (session.schema.json)
 4. 세션 로그를 근거로 리뷰 생성 → Firestore `projects/<pid>/reviews/{id}` (review.schema.json, 타입별 포맷)
 
@@ -63,6 +63,12 @@
 - `?agent=1` 진입 시: 주요 UI에 `data-testid` 노출, geolocation mock 허용, 애니메이션 축소
 - now-here는 직접 만든 앱이므로 이 모듈을 now-here repo에 추가하는 작업이 선행됨
 
+## 모델 · 호출부
+- **Gemini 2.5 Flash**를 Google Agent Platform(구 Vertex AI)에서 호출한다. SDK는 `google-genai`, `enterprise=True`, 인증은 API 키가 아니라 ADC. 단가·근거·미검증 항목은 [docs/AI-PROVIDER.md](../../docs/AI-PROVIDER.md)가 단일 기준이다.
+- **이미지 입력 단가가 텍스트와 같다.** 스크린샷 루프에 붙는 프리미엄이 없어 이 모듈에 유리하다. 다만 스크린샷 한 장이 몇 토큰으로 환산되는지는 아직 확인되지 않았다 — 첫 세션에서 실제 사용량을 확인할 것.
+- **모델 호출부는 한 곳에 모으고 모델명·제공자는 설정으로 뺀다.** 루프 코드 안에 모델 id를 하드코딩하지 않는다. 나중에 모델을 바꾸거나 같은 페르소나·같은 시나리오로 모델을 A/B 비교하려면 호출부가 하나여야 한다.
+
 ## 비용
-세션당 대략 $0.5~2 (스텝 수·모델에 따라). 실행 전 항상 고지, 세션 로그에 `costUsd` 기록.
+세션당 **약 $0.15~0.3 추정** (20턴·누적 입력 ~400K·출력 ~20K 토큰 가정, Gemini 2.5 Flash $0.30/$2.50 per 1M 기준).
+**실측이 아니라 계산값이다** — 스텝 수·스크린샷 장수에 따라 변동한다. 실행 전 항상 고지하고(단가가 낮아졌다고 생략하지 않는다), 세션 로그에 `costUsd`로 실제 사용량 기반 비용을 기록해 이 추정을 교정한다.
 `effortTolerance`가 `low`인 페르소나는 스텝이 적어 더 싸다 — 비용을 아끼려고 상한을 늘리거나 줄이지 말 것. 스텝 예산은 페르소나의 성격이지 예산 항목이 아니다.

@@ -36,14 +36,25 @@ gh auth status
 - `firestore.rules`를 고쳤다면 **콘솔에 붙여넣고 게시해야** 적용된다. 커밋만으로는 효과가 없다.
   게시 후 검증: `bash tools/check-rules.sh`
 - 비밀값(서비스 계정 키·API 키)은 repo에 두지 않는다. GitHub Actions Secrets만 사용한다.
+- **GCP 자격증명(ADC)·서비스 계정 키도 repo에 두지 않는다.** 로컬 실행은 `gcloud auth application-default login`(ADC)으로,
+  Actions는 Secrets로 인증한다. `application_default_credentials.json`·키 JSON을 프로젝트 폴더로 복사하지 말 것.
 - **now-here-survey(외부 설문 시스템)는 읽기 전용으로만 접근한다.** 현장에서 운영 중인 서비스이므로 `packages/core/survey-source.js`에
   쓰기 코드(POST/PATCH/PUT/DELETE, Supabase RPC, Realtime 구독)를 추가하지 않는다 — 허용되는 POST는 인증 토큰 발급·갱신뿐이다.
   연동 계정 토큰은 `sessionStorage`에만 두고, 참가자 실명·로그인 아이디·passcode는 가져오지 않는다 (`docs/SURVEY-INTEGRATION.md`).
 
-## 3. 비용 고지
+## 3. AI 모델 호출과 비용 고지
 
-Claude API를 호출하는 기능(페르소나 생성, 데모 리뷰 세션 약 $0.5~2/건, 서베이 코칭)은
+이 프로젝트의 AI 기능은 **Google Gemini(Agent Platform, 구 Vertex AI)** 로 돌린다. 근거·SDK·모델 선택은
+[docs/AI-PROVIDER.md](docs/AI-PROVIDER.md)가 단일 기준이다.
+
+**비용 고지**: 모델을 호출하는 기능(페르소나 생성, 데모 리뷰 세션 **약 $0.15~0.3/건 추정**, 서베이 코칭)은
 **실행 전에 예상 비용을 사용자에게 알리고 진행**한다. 코드 작성·배포·데이터 정리는 고지 없이 진행한다.
+단가가 Claude 시절보다 크게 낮아졌지만 **고지 규칙 자체는 그대로 유지**한다 — 위 수치는 실측이 아니라 추정이며,
+실제 사용량은 세션 로그의 `costUsd`에 기록해 추정을 교정한다.
+
+**모델 호출부 규칙**: 모델명·제공자·엔드포인트는 **설정(환경변수·설정 파일)으로 빼고, 호출 코드는 한 곳에 모은다.**
+나중에 모델을 바꾸거나 품질을 A/B로 비교할 때 호출부 한 곳만 고치면 되도록 한다. 에이전트 스크립트 곳곳에
+모델 id를 하드코딩하지 않는다.
 
 ## 4. 버전
 

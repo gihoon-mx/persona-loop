@@ -26,8 +26,9 @@
 └────────────────────────────▲────────────────────────────────┘
                              │ 결과 쓰기 (서비스 계정 — 향후 과제)
 ┌─ GitHub Actions — Agent 런타임 ─────────────────────────────┐
-│ persona-builder (Claude API)                                │
-│ demo-reviewer   (Playwright + Claude API)                   │
+│ persona-builder (Gemini · 배치 모드)                        │
+│ demo-reviewer   (Playwright + Gemini 2.5 Flash)             │
+│ 제공자: Google Agent Platform (docs/AI-PROVIDER.md)         │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─ 외부 소스 — now-here-survey (Supabase) · 읽기 전용 ────────┐
@@ -66,7 +67,7 @@ repo에 커밋되는 데이터: data/seed/sample/ (가상 샘플) 뿐 — 실데
 ### 1. 호스팅 — GitHub Pages, repo는 public 유지
 - GitHub Free 플랜에서 Pages는 **public repo만** 지원. private으로 하려면 GitHub Pro($4/월) 필요.
 - **v0.3부터는 public이어도 안전하다**: repo에 실데이터가 아예 없기 때문이다. 코드·가상 샘플 시드·공개돼도 무방한 Firebase 웹 config만 커밋되고, 프로젝트·응답·페르소나·리뷰는 전부 Firestore에 있으며 규칙으로 막혀 있다. 즉 **repo를 private으로 바꿔도 보안이 나아지지 않는다** → GitHub Pro 불필요.
-- Claude API 키는 Actions Secrets에만 존재.
+- AI 제공자 자격증명(GCP 서비스 계정 키 등)은 Actions Secrets에만 존재한다. 로컬 실행은 키 파일 없이 ADC(`gcloud auth application-default login`)를 쓴다.
 - 나중에 굳이 private이 필요하면: GitHub Pro 결제 or Firebase Hosting으로 이전(무료, private repo 가능). 구조 변경 없이 배포 대상만 바뀜.
 - public repo는 Actions 무료 무제한이라는 보너스도 있음 (private은 월 2,000분 제한).
 
@@ -96,7 +97,7 @@ now-here가 직접 만든 앱이라는 점을 최대한 활용한다:
    - 주요 UI 요소에 `data-testid` 노출 → Agent의 조작 성공률 대폭 상승
    - geolocation mock 주입 가능 (페르소나별 "사는 동네"에서 앱을 쓰는 시나리오)
    - 애니메이션 축소 → 스크린샷 안정화
-2. **실행**: GitHub Actions에서 Playwright가 실제 브라우저로 데모를 열고, Claude가 스크린샷을 보고 다음 행동을 결정하는 루프 (computer-use 방식). 페르소나별로 viewport(기기)·네트워크 속도·목표 시나리오("퇴근길에 우리 동네 경계 확인하기" 등)를 다르게 설정.
+2. **실행**: GitHub Actions에서 Playwright가 실제 브라우저로 데모를 열고, 모델(Gemini 2.5 Flash)이 스크린샷을 보고 다음 행동을 결정하는 루프 (computer-use 방식). 페르소나별로 viewport(기기)·네트워크 속도·목표 시나리오("퇴근길에 우리 동네 경계 확인하기" 등)를 다르게 설정. Gemini는 **이미지 입력 단가가 텍스트와 같아** 스크린샷 루프에 붙는 프리미엄이 없다(§7·docs/AI-PROVIDER.md).
 3. **산출물 — 사용 여정 로그(session log)**: 스텝별 [스크린샷 + 행동 + 페르소나의 속마음] 기록. 리뷰 뷰어에서 세션 리플레이로 보여주고, 최종 리뷰는 이 여정을 근거로 작성됨. "정말 써봤다"의 증거가 UI로 드러나는 게 이 플랫폼의 차별점.
 
 ### 5. 페르소나 — 개인 응답 기반
@@ -134,6 +135,10 @@ now-here가 직접 만든 앱이라는 점을 최대한 활용한다:
 - 아직 구현되지 않았다. 그때까지 페르소나·리뷰·세션은 웹 화면에서 수동으로 넣거나 샘플 시드로만 존재한다.
 - 대안(더 단순): 에이전트를 Actions가 아니라 로컬에서 돌리고 결과를 웹 화면에서 붙여넣기. 서비스 계정 키를 만들지 않아도 되므로 초기에는 이쪽이 안전하다.
 
+**AI 제공자 — Gemini on Agent Platform (2026-07-25 결정)**
+
+두 에이전트와 서베이 코칭이 호출하는 모델은 Anthropic Claude가 아니라 **Google Cloud Agent Platform(구 Vertex AI)의 Gemini**다. 이유는 품질 비교가 아니라 **크레딧 적용 경로**다 — 보유한 GCP 체험 크레딧은 partner model(=managed API)로 분류되는 Claude에도, AI Studio의 Gemini에도 쓸 수 없고 `aiplatform.googleapis.com`의 Gemini에만 적용된다. SDK는 `google-genai` 하나로 두 경로를 모두 쓰며 `enterprise=True`가 곧 과금 경계다(개발·디버깅은 AI Studio 무료 등급, 실제 세션만 Agent Platform). demo-reviewer는 Gemini 2.5 Flash, persona-builder는 같은 모델의 배치 모드(표준가의 50%)를 쓰고, 인증은 API 키가 아니라 ADC다. **모델명·제공자는 설정으로 빼고 호출부를 한 곳에 모은다** — 나중에 모델을 교체하거나 A/B로 비교하기 위해서다. 근거 원문·단가표·미검증 항목은 [docs/AI-PROVIDER.md](docs/AI-PROVIDER.md)가 단일 기준이다.
+
 ### 8. 설문 시스템 연동 (now-here-survey)
 
 설문을 만들고 현장에서 진행하는 도구는 이미 있다 — [now-here-survey](https://gihoon-mx.github.io/now-here-survey/)(React+TS+Vite / Supabase).
@@ -162,8 +167,14 @@ Persona Loop가 설문 기능을 하나 더 만들면 중복이고 데이터가 
 |------|------|------|
 | Pages 호스팅, Actions 실행 | 무료 | public repo |
 | Firebase (Auth + Firestore) | 무료 티어로 충분 | 35명~수백 명 응답 규모 |
-| 페르소나 생성 (Claude API) | 회당 수백 원 수준 | 서베이 응답 전체를 컨텍스트로 투입 |
-| 데모 리뷰 세션 (Playwright + Claude API) | 세션당 대략 $0.5~2 | 스텝 수·스크린샷 해상도·모델에 따라 변동 |
-| 서베이 코칭/생성 (Claude API) | 회당 수십~수백 원 | |
+| 페르소나 생성 (Gemini 2.5 Flash · 배치) | 회당 약 $0.05 (추정) | 서베이 응답 전체를 컨텍스트로 투입 — 응답자 수에 비례. 배치 모드로 표준가의 50% |
+| 데모 리뷰 세션 (Playwright + Gemini 2.5 Flash) | 세션당 약 $0.15~0.3 (추정) | 20턴·누적 입력 ~400K·출력 ~20K 토큰 가정. 스텝 수·스크린샷 장수에 따라 변동 |
+| 서베이 코칭/생성 (Gemini 2.5 Flash) | 회당 $0.01 안팎 (추정) | |
+| LLM 외 GCP 사용 (Firestore·Storage 등) | 월 $1 미만 | 크레딧은 사실상 LLM 토큰 전용 |
 
-무료 범위(코드 작성, 배포, 데이터 정리)는 고지 없이 진행, **Claude API를 호출하는 작업은 실행 전 예상 비용을 먼저 알림**.
+⚠️ **위 LLM 수치는 실측이 아니라 추정이다.** Gemini 2.5 Flash 단가($0.30/$2.50 per 1M)에 예상 토큰 수를 곱한 값이며,
+특히 스크린샷의 토큰 환산율은 아직 확인되지 않았다(docs/AI-PROVIDER.md §6). 실행할 때마다 세션 로그의 `costUsd`에
+실제 사용량 기반 비용을 기록해 추정을 교정한다.
+
+무료 범위(코드 작성, 배포, 데이터 정리)는 고지 없이 진행, **모델을 호출하는 작업은 실행 전 예상 비용을 먼저 알림**.
+단가가 낮아졌다는 이유로 고지를 생략하지 않는다 (CLAUDE.md §3).
